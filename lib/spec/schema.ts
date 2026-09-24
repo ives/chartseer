@@ -5,11 +5,23 @@ import { z } from "zod";
 // Objects are strict: an unknown key is an error the model can fix, rather
 // than something silently dropped.
 
+// Replaces Zod's generic message when no branch of a union matches.
+// Other issues, such as a non-object input, keep their own message.
+function unionError(message: string) {
+  return (issue: z.core.$ZodRawIssue) => (issue.code === "invalid_union" ? message : undefined);
+}
+
 const Field = z.string().describe("Exact column name from the dataset summary");
 
-const Value = z
-  .union([z.string(), z.number()])
-  .describe("A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"");
+// A string or number, with an error message naming where it was used.
+function value(message: string) {
+  return z
+    .union([z.string(), z.number()], { error: unionError(message) })
+    .describe("A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"");
+}
+
+const annotationValue = (key: string) =>
+  value(`${key} must be a string or a number: a category label, a number, or an ISO 8601 date string`);
 
 const Label = z.string().describe("Axis title to show instead of the column name");
 
@@ -33,7 +45,11 @@ const FieldMeasure = z
   .describe("A numeric column, combined across rows that share the same x (and series) value");
 
 const Measure = z
-  .discriminatedUnion("aggregate", [CountMeasure, FieldMeasure])
+  .discriminatedUnion("aggregate", [CountMeasure, FieldMeasure], {
+    error: unionError(
+      'aggregate must be "count" (with no field) to count rows, or "sum", "mean", "median", "min" or "max" with a numeric field',
+    ),
+  })
   .describe("The value axis. Use aggregate \"count\" to count rows; otherwise name a numeric field.");
 export type Measure = z.infer<typeof Measure>;
 
@@ -52,7 +68,7 @@ const ComparisonFilter = z
   .strictObject({
     field: Field,
     op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte"]).describe("eq =, neq ≠, gt >, gte ≥, lt <, lte ≤"),
-    value: Value,
+    value: value('value must be a string or a number; use `values` with op "in" for lists'),
   })
   .describe("Keep rows where the field compares true against a single value");
 
@@ -60,33 +76,39 @@ const InFilter = z
   .strictObject({
     field: Field,
     op: z.literal("in"),
-    values: z.array(Value).min(1).describe("Keep rows whose value is any of these"),
+    values: z.array(value("each entry in values must be a string or a number")).min(1).describe("Keep rows whose value is any of these"),
   })
   .describe("Keep rows whose value is in a list");
 
 const Filter = z
-  .discriminatedUnion("op", [ComparisonFilter, InFilter])
+  .discriminatedUnion("op", [ComparisonFilter, InFilter], {
+    error: unionError('op must be "eq", "neq", "gt", "gte", "lt" or "lte" with a single value, or "in" with a list of values'),
+  })
   .describe("Applied before aggregation. All filters must hold for a row to be kept.");
 export type Filter = z.infer<typeof Filter>;
 
 const Annotation = z
-  .discriminatedUnion("kind", [
-    z
-      .strictObject({
-        kind: z.literal("point"),
-        x: Value.describe("Position on the x axis, in the x column's own values"),
-        label: z.string().describe("Short note, a few words"),
-      })
-      .describe("Marks a single x position"),
-    z
-      .strictObject({
-        kind: z.literal("range"),
-        from: Value.describe("Start of the range on the x axis, in the x column's own values"),
-        to: Value.describe("End of the range, inclusive"),
-        label: z.string().describe("Short note, a few words"),
-      })
-      .describe("Shades a span of the x axis"),
-  ])
+  .discriminatedUnion(
+    "kind",
+    [
+      z
+        .strictObject({
+          kind: z.literal("point"),
+          x: annotationValue("x").describe("Position on the x axis, in the x column's own values"),
+          label: z.string().describe("Short note, a few words"),
+        })
+        .describe("Marks a single x position"),
+      z
+        .strictObject({
+          kind: z.literal("range"),
+          from: annotationValue("from").describe("Start of the range on the x axis, in the x column's own values"),
+          to: annotationValue("to").describe("End of the range, inclusive"),
+          label: z.string().describe("Short note, a few words"),
+        })
+        .describe("Shades a span of the x axis"),
+    ],
+    { error: unionError('kind must be "point" (with x) or "range" (with from and to)') },
+  )
   .describe("A note that draws attention to part of the chart");
 export type Annotation = z.infer<typeof Annotation>;
 
@@ -158,7 +180,9 @@ const ScatterSpec = Base.extend({
 }).describe("Scatter plot: one point per row, showing how two numeric columns relate");
 
 export const ChartSpec = z
-  .discriminatedUnion("type", [LineSpec, AreaSpec, BarSpec, ScatterSpec])
+  .discriminatedUnion("type", [LineSpec, AreaSpec, BarSpec, ScatterSpec], {
+    error: unionError('type must be "line", "area", "bar" or "scatter"'),
+  })
   .describe("A complete chart. Describe what it means; the app decides how it looks.");
 export type ChartSpec = z.infer<typeof ChartSpec>;
 

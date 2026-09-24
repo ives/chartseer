@@ -39,7 +39,46 @@ describe("parseSpec accepts", () => {
 describe("parseSpec rejects", () => {
   it.each([
     ["an unknown key", { ...gelatoBar, colour: "red" }, '(root): Unrecognized key: "colour"'],
-    ["an unknown chart type", { ...gelatoBar, type: "pie" }, "type: Invalid discriminator value"],
+    ["a spec that isn't an object", "hello", "(root): Invalid input: expected object, received string"],
+    ["an unknown chart type", { ...gelatoBar, type: "pie" }, 'type: type must be "line", "area", "bar" or "scatter"'],
+    [
+      "a measure with no aggregate",
+      { ...gelatoBar, y: { field: "scoops" } },
+      'y.aggregate: aggregate must be "count" (with no field) to count rows, or "sum", "mean", "median", "min" or "max" with a numeric field',
+    ],
+    ["an unknown aggregate", { ...gelatoBar, y: { field: "scoops", aggregate: "avg" } }, 'y.aggregate: aggregate must be "count"'],
+    ["a field on a count measure", { ...gelatoBar, y: { field: "scoops", aggregate: "count" } }, 'y: Unrecognized key: "field"'],
+    [
+      "an unknown filter op",
+      { ...gelatoBar, filters: [{ field: "shop", op: "contains", value: "Brix" }] },
+      'filters[0].op: op must be "eq", "neq", "gt", "gte", "lt" or "lte" with a single value, or "in" with a list of values',
+    ],
+    [
+      "a list as a comparison value",
+      { ...gelatoBar, filters: [{ field: "shop", op: "eq", value: ["Brixton", "Soho"] }] },
+      'filters[0].value: value must be a string or a number; use `values` with op "in" for lists',
+    ],
+    ["a boolean filter value", { ...gelatoBar, filters: [{ field: "shop", op: "eq", value: true }] }, "filters[0].value: value must be a string or a number"],
+    [
+      "a null in an in list",
+      { ...gelatoBar, filters: [{ field: "shop", op: "in", values: [null] }] },
+      "filters[0].values[0]: each entry in values must be a string or a number",
+    ],
+    [
+      "an unknown annotation kind",
+      { ...gelatoLine, annotations: [{ kind: "line", x: "2025-06-19", label: "n" }] },
+      'annotations[0].kind: kind must be "point" (with x) or "range" (with from and to)',
+    ],
+    [
+      "a null annotation x",
+      { ...gelatoLine, annotations: [{ kind: "point", x: null, label: "n" }] },
+      "annotations[0].x: x must be a string or a number: a category label, a number, or an ISO 8601 date string",
+    ],
+    [
+      "an object as a range start",
+      { ...gelatoLine, annotations: [{ kind: "range", from: { date: "2025-06-19" }, to: "2025-07-01", label: "n" }] },
+      "annotations[0].from: from must be a string or a number",
+    ],
     ["an unknown x field", { ...gelatoBar, x: { field: "Shop" } }, 'x.field: there is no column "Shop". Columns: "date", "weekday", "shop"'],
     [
       "an unknown measure field",
