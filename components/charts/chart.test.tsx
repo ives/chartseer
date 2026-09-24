@@ -15,9 +15,20 @@ const csv = `date,shop,scoops,max_temp_c
 2025-06-02,Richmond,15,22
 2025-06-03,Brixton,9,19
 `;
-const { summary, rows } = inferDataset(parseCsv(csv));
+const shops = inferDataset(parseCsv(csv));
 
-function renderChart(input: ChartSpec) {
+// Friday 15 November 2024 to Monday 10 February 2025, so the first and last
+// weeks and months are partial.
+const seasonal = inferDataset(
+  parseCsv(`date,scoops
+2024-11-15,5
+2024-12-02,6
+2025-01-06,7
+2025-02-10,8
+`),
+);
+
+function renderChart(input: ChartSpec, { summary, rows } = shops) {
   const result = parseSpec(input, summary);
   if (!result.ok) throw new Error(result.errors.join("\n"));
   return render(<Chart spec={result.spec} data={prepareChartData(rows, summary, result.spec)} dataset={datasets.gelato} />);
@@ -66,6 +77,37 @@ describe("Chart", () => {
     cleanup();
     renderChart({ ...bar, layout: "stacked", orientation: "horizontal" });
     expect(screen.getByRole("img").querySelectorAll("rect")).toHaveLength(4);
+  });
+
+  it("labels monthly ticks by period, with the year where it changes", () => {
+    renderChart({ ...base, type: "line", x: { field: "date", timeUnit: "month" }, y: { field: "scoops", aggregate: "sum" } }, seasonal);
+    const ticks = [...screen.getByRole("img").querySelectorAll("text")].map((t) => t.textContent);
+    expect(ticks).toEqual(expect.arrayContaining(["Nov 2024", "Dec", "Jan 2025", "Feb", "Month"]));
+  });
+
+  it("dashes a line into partial buckets and says why", () => {
+    renderChart({ ...base, type: "line", x: { field: "date", timeUnit: "week" }, y: { field: "scoops", aggregate: "sum" } }, seasonal);
+    expect(screen.getByRole("img").querySelectorAll("path[data-partial]")).toHaveLength(1);
+    expect(
+      screen.getByText(
+        "Dashed: the weeks commencing 11 Nov 2024 and 10 Feb 2025 cover only part of the date range, so their totals run low.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("draws partial bars lighter, with period labels and a footnote", () => {
+    renderChart({ ...base, type: "bar", x: { field: "date", timeUnit: "month" }, y: { aggregate: "count" } }, seasonal);
+    const svg = screen.getByRole("img");
+    expect(svg.querySelectorAll("rect")).toHaveLength(4);
+    expect(svg.querySelectorAll("rect[data-partial]")).toHaveLength(2);
+    expect(screen.getByText("Nov 2024")).toBeTruthy();
+    expect(screen.getByText(/^Lighter: Nov 2024 and Feb 2025 cover only part/)).toBeTruthy();
+  });
+
+  it("adds no footnote when no bucket is partial", () => {
+    renderChart({ ...base, type: "line", x: { field: "date", timeUnit: "month" }, y: { field: "scoops", aggregate: "mean" } }, seasonal);
+    expect(screen.queryByText(/only part of the date range/)).toBeNull();
+    expect(screen.getByRole("img").querySelectorAll("path[data-partial]")).toHaveLength(0);
   });
 
   it("shows a placeholder, the title and the attribution for scatter charts", () => {

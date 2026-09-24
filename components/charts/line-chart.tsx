@@ -7,6 +7,7 @@ import type { CartesianData, XValue } from "@/lib/data/prepare";
 import { AnnotationLayer, type Span } from "./annotation-layer";
 import { type Axes, type Axis, ChartFrame, type Inner } from "./chart-frame";
 import { seriesColor } from "./colors";
+import { partialNote } from "./partial-note";
 import { valueDomain } from "./value-domain";
 
 type LineChartProps = {
@@ -15,7 +16,7 @@ type LineChartProps = {
   dataset: DatasetMeta;
 };
 
-type Point = { x: number; y: number | null };
+type Point = { x: number; y: number | null; partial: boolean };
 
 const HEIGHT = 360;
 
@@ -42,16 +43,30 @@ export function LineChart({ spec, data, dataset }: LineChartProps) {
         items: data.series.map((s, i) => ({ label: s.label, color: seriesColor(i) })),
       }}
       dataset={dataset}
+      note={partialNote(data, "Dashed")}
       height={HEIGHT}
       axes={axes}
     >
       {({ x, y }, inner) => {
         const px = (value: XValue) => position(x, value);
         const py = (value: number) => (y.kind === "linear" ? y.scale(value) : 0);
-        const path = line<Point>()
-          .defined((p) => p.y !== null)
+        // Partial buckets (D-026) are left out of the solid line and joined
+        // to their neighbours by a dashed one.
+        const solid = line<Point>()
+          .defined((p) => p.y !== null && !p.partial)
           .x((p) => p.x)
           .y((p) => py(p.y ?? 0));
+        const segment = line<Point>()
+          .x((p) => p.x)
+          .y((p) => py(p.y ?? 0));
+        const dashed = (points: Point[]) =>
+          points
+            .flatMap((p, j) => {
+              const next = points[j + 1];
+              const joins = next !== undefined && p.y !== null && next.y !== null && (p.partial || next.partial);
+              return joins ? [segment([p, next]) ?? ""] : [];
+            })
+            .join("");
         return (
           <>
             <AnnotationLayer
@@ -61,14 +76,20 @@ export function LineChart({ spec, data, dataset }: LineChartProps) {
               inner={inner}
             />
             {data.series.map((s, i) => {
-              const points: Point[] = data.x.values.map((value, j) => ({ x: px(value) ?? 0, y: s.values[j] ?? null }));
+              const points: Point[] = data.x.values.map((value, j) => ({
+                x: px(value) ?? 0,
+                y: s.values[j] ?? null,
+                partial: data.x.partial?.[j] ?? false,
+              }));
               const color = seriesColor(i);
+              const stroke = { fill: "none", stroke: color, strokeWidth: 2, strokeLinejoin: "round", strokeLinecap: "round" } as const;
+              const partialPath = dashed(points);
               return (
                 <g key={String(s.key)}>
-                  <path
-                    d={path(points) ?? undefined}
-                    style={{ fill: "none", stroke: color, strokeWidth: 2, strokeLinejoin: "round", strokeLinecap: "round" }}
-                  />
+                  <path d={solid(points) ?? undefined} style={stroke} />
+                  {partialPath && (
+                    <path d={partialPath} data-partial="" style={{ ...stroke, strokeDasharray: "var(--chart-partial-dash)" }} />
+                  )}
                   {/* A value between two gaps has no line segment, so it gets a dot. */}
                   {points.map((p, j) =>
                     p.y !== null && points[j - 1]?.y == null && points[j + 1]?.y == null ? (
@@ -93,7 +114,8 @@ function xAxis(data: CartesianData, width: number): Axis {
     case "date": {
       const times = data.x.values.map((v) => isoToUtcDate(String(v)).getTime());
       const domain = [new Date(Math.min(...times)), new Date(Math.max(...times))];
-      return { kind: "time", scale: scaleUtc().domain(domain).range([0, width]), label };
+      const scale = scaleUtc().domain(domain).range([0, width]);
+      return { kind: "time", scale, label, unit: data.x.timeUnit };
     }
     case "number": {
       const numbers = data.x.values.map(Number);

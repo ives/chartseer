@@ -48,13 +48,14 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     } satisfies ChartSpec,
   },
   {
-    id: "gelato-daily-2025",
+    id: "gelato-weekly-2025",
     dataset: gelatoSummary,
     spec: {
       version: 1,
       type: "line",
-      title: "Daily scoops by shop, 2025",
-      x: { field: "date" },
+      title: "Weekly scoops by shop, 2025",
+      // 2025 starts and ends on a Wednesday, so the first and last weeks are partial.
+      x: { field: "date", timeUnit: "week" },
       y: { field: "scoops", aggregate: "sum", label: "Scoops" },
       series: { field: "shop" },
       filters: [
@@ -74,6 +75,20 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
       subtitle: "Canary Wharf is busiest on weekdays; every other shop peaks at the weekend",
       x: { field: "weekday", label: "Day" },
       y: { field: "scoops", aggregate: "sum", label: "Scoops" },
+      series: { field: "shop" },
+      layout: "stacked",
+    } satisfies ChartSpec,
+  },
+  {
+    id: "gelato-monthly-revenue",
+    dataset: gelatoSummary,
+    spec: {
+      version: 1,
+      type: "bar",
+      title: "Monthly revenue by shop",
+      subtitle: "2024–2025",
+      x: { field: "date", timeUnit: "month" },
+      y: { field: "revenue_gbp", aggregate: "sum", label: "Revenue (£)" },
       series: { field: "shop" },
       layout: "stacked",
     } satisfies ChartSpec,

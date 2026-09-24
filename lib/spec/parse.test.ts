@@ -173,8 +173,39 @@ describe("parseSpec rejects", () => {
       { ...gelatoLine, x: { field: "max_temp_c" }, annotations: [{ kind: "point", x: "30", label: "n" }] },
       'annotations[0].x: "max_temp_c" is a number column, so the value must be a number, not the string "30".',
     ],
+    [
+      "a time unit on a category column",
+      { ...gelatoLine, x: { field: "shop", timeUnit: "month" } },
+      'x.timeUnit: "shop" is a category column; timeUnit groups dates into days, weeks, months, quarters or years, so it needs a date column. Date columns: "date". Remove timeUnit to plot "shop" as it is.',
+    ],
+    [
+      "a time unit on a number column",
+      { ...gelatoBar, x: { field: "max_temp_c", timeUnit: "week" } },
+      'x.timeUnit: "max_temp_c" is a number column;',
+    ],
+    ["an unknown time unit", { ...gelatoLine, x: { field: "date", timeUnit: "fortnight" } }, "x.timeUnit: Invalid option"],
+    [
+      "more than 50 weekly bars",
+      { ...gelatoBar, x: { field: "date", timeUnit: "week" } },
+      'x.timeUnit: the dates span 105 weeks; a bar chart shows at most 50. Use a longer timeUnit, narrow the dates with gte and lte filters on "date", or use a line chart.',
+    ],
   ])("%s", (_name, spec, expected) => {
     expect(errorsFor(spec)).toContainEqual(expect.stringContaining(expected));
+  });
+
+  it("gives one error for a time unit on a missing column", () => {
+    expect(errorsFor({ ...gelatoLine, x: { field: "day", timeUnit: "week" } })).toEqual([
+      expect.stringContaining('x.field: there is no column "day".'),
+    ]);
+  });
+
+  it("counts time buckets, not dates, against the bar limit", () => {
+    const quarter = [
+      { field: "date", op: "gte", value: "2025-04-01" },
+      { field: "date", op: "lt", value: "2025-07-01" },
+    ];
+    expect(errorsFor({ ...gelatoBar, x: { field: "date", timeUnit: "week" }, filters: quarter })).toEqual([]);
+    expect(errorsFor({ ...gelatoBar, x: { field: "date", timeUnit: "month" } })).toEqual([]);
   });
 
   it("collects every semantic error, not just the first", () => {

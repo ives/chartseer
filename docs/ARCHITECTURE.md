@@ -51,7 +51,7 @@ Import direction is one-way: `app → components, lib/ai → lib/data → lib/sp
 
 ## 5. The chart spec (v1 draft — to be refined in Milestone 1)
 
-> **Superseded:** `lib/spec/schema.ts` is now the source of truth. The sketch below is kept for history; D-014 and D-017 in `docs/DECISIONS.md` list what changed.
+> **Superseded:** `lib/spec/schema.ts` is now the source of truth. The sketch below is kept for history; D-014, D-017 and D-026 in `docs/DECISIONS.md` list what changed.
 
 Design rules:
 
@@ -122,7 +122,8 @@ export type ChartSpec = z.infer<typeof ChartSpec>;
    - measures with a field are numeric (`count` takes no field);
    - scatter axes: without `per`, each is a numeric `field` with no aggregate (one point per row). With `per`, each needs an aggregate: `count` takes no field; `sum`, `mean`, `median`, `min` and `max` take a numeric field. `per.field` must exist;
    - a log scale on a scatter axis needs the column's minimum above zero (a `count` axis is exempt);
-   - bar charts show at most 50 categories unless `limit` is set;
+   - `x.timeUnit` (line, area and bar) only on a date column;
+   - bar charts show at most 50 categories unless `limit` is set. With a `timeUnit`, the count is the periods the requested dates span (below), not the distinct dates;
    - series and scatter groups have at most 12 values;
    - an `eq` or `in` filter on the same column narrows its value count for the two checks above;
    - filter values match the column's kind: numbers for number columns, ISO 8601 strings for date columns, strings for category and text columns;
@@ -138,7 +139,9 @@ All errors are collected, not just the first. A check that needs a missing colum
 - File size limit: 5 MB.
 - Column inference produces a summary per column (`lib/spec/columns.ts`): `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, and up to 5 example values. A category column with 50 or fewer distinct values lists **all** of them instead, in natural order: calendar order for weekdays, months and seasons, otherwise the order of first appearance in the file (D-015).
 - The model receives the summary, the row count and at most 10 sample rows — never the full dataset.
-- `prepareChartData(rows, dataset, spec)` is the one pure pipeline from typed rows to chart-ready data: **filter → group and aggregate → sort → limit → shape** (D-021). Renderers never transform data themselves.
+- `prepareChartData(rows, dataset, spec)` is the one pure pipeline from typed rows to chart-ready data: **filter → bucket → group and aggregate → sort → limit → shape** (D-021). Renderers never transform data themselves.
+- **Time buckets** (D-026). With `x.timeUnit`, each date moves to the first day of its day, week, month, quarter or year before grouping. Weeks start on Monday, and everything is in UTC. Filters run first, on the raw dates. Annotation dates move to the start of their bucket too. Tick labels name the period and show the year on the first tick and wherever it changes ("30 Dec 2024", "6 Jan"; "Jan 2025", "Feb").
+- **Partial buckets.** The *requested range* is the x column's min and max, narrowed by filters on that column. A bucket that reaches past it holds only some of its days, so a `sum` or `count` there looks like a dip. Such buckets are flagged in the data and drawn dashed (lines) or lighter (bars), with a footnote. Other aggregates aren't flagged. A gap inside the range, such as a closure, is real and never flagged.
 
 ## 8. Conversation and refinement
 
@@ -191,4 +194,5 @@ All errors are collected, not just the first. A check that needs a missing colum
 - Is one validation retry enough, or does the prompt-check script suggest two?
 - **Tool schema size.** `RenderChartInput`'s JSON Schema is about 17 KB minified (snapshot in `lib/spec/__snapshots__/`), sent with every request. Check its token cost in M3 alongside prompt caching and the prompt-check script, before trimming any descriptions.
 - **Attribution and sampling are the app's job.** The TfL attribution and the bike sample ratio (1 in 30.8) must be shown by the app wherever the bikes dataset appears, not left to the model's subtitles, which it may omit or get wrong.
+- **Dark mode (M5).** Charts follow the page theme, with no white panel behind them. Consider a subtly raised panel behind each chart and fainter gridlines. Any future export or download is always light-themed, whatever the page theme.
 - **Locale formats in uploads.** Column inference doesn't yet recognise UK-style dates (`24/09/2026`) or numbers with thousands separators (`1,234`); they come through as categories (D-019). Decide in M4, when uploads arrive.

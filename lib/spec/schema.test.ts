@@ -51,6 +51,8 @@ describe("ChartSpec rejects", () => {
     ["a measure with no aggregate", { ...bar, y: { field: "b" } }],
     ["a log scale on a bar", { ...bar, y: { field: "b", aggregate: "sum", scale: "log" } }],
     ["an unknown key", { ...bar, colour: "red" }],
+    ["an unknown time unit", { ...bar, x: { field: "a", timeUnit: "fortnight" } }],
+    ["a time unit on a scatter axis", { ...scatter, x: { field: "a", timeUnit: "week" } }],
   ])("%s", (_name, spec) => {
     expect(ChartSpec.safeParse(spec).success).toBe(false);
   });

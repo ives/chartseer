@@ -3,13 +3,16 @@
 import { type ReactNode, type RefObject, useEffect, useId, useRef, useState } from "react";
 import type { ScaleBand, ScaleLinear, ScalePoint, ScaleTime } from "d3-scale";
 import type { DatasetMeta } from "@/lib/data/datasets";
+import { bucketTicks, formatBuckets, isoToUtcDate } from "@/lib/data/dates";
+import type { TimeUnit } from "@/lib/spec";
 
 // One axis of the plot. Gridlines are drawn only where `grid` is set, which
-// renderers use for the value axis (D-022).
+// renderers use for the value axis (D-022). With a time unit, ticks fall on
+// bucket starts and are labelled by period, e.g. "Jan 2025", "Feb" (D-026).
 export type Axis =
   | { kind: "linear"; scale: ScaleLinear<number, number>; label: string; grid?: boolean }
-  | { kind: "time"; scale: ScaleTime<number, number>; label: string }
-  | { kind: "band"; scale: ScaleBand<string>; label: string }
+  | { kind: "time"; scale: ScaleTime<number, number>; label: string; unit?: TimeUnit }
+  | { kind: "band"; scale: ScaleBand<string>; label: string; unit?: TimeUnit }
   | { kind: "point"; scale: ScalePoint<string>; label: string };
 
 export type Axes = { x: Axis; y: Axis };
@@ -21,6 +24,8 @@ type ChartFrameProps = {
   subtitle?: string;
   legend?: { title?: string; items: LegendItem[] };
   dataset: DatasetMeta;
+  // A footnote about this chart, shown above the attribution.
+  note?: string;
   // Total SVG height in pixels, margins included.
   height: number;
   // Scales depend on the plot's size, which depends on the measured width.
@@ -38,7 +43,7 @@ const LINE_HEIGHT = 14;
 const MIN_LEFT = 32;
 const MAX_LEFT_SHARE = 0.4;
 
-export function ChartFrame({ title, subtitle, legend, dataset, height, axes, children }: ChartFrameProps) {
+export function ChartFrame({ title, subtitle, legend, dataset, note, height, axes, children }: ChartFrameProps) {
   const titleId = useId();
   const [ref, width] = useElementWidth<HTMLDivElement>();
 
@@ -71,6 +76,7 @@ export function ChartFrame({ title, subtitle, legend, dataset, height, axes, chi
         )}
       </div>
       <footer className="flex flex-col gap-0.5 text-xs opacity-70">
+        {note && <p>{note}</p>}
         <p>{dataset.attribution}</p>
         {dataset.note && <p>{dataset.note}</p>}
       </footer>
@@ -159,6 +165,12 @@ function ticksFor(axis: Axis, length: number, side: Side): Tick[] {
     }
     case "time": {
       const count = tickCount(length, side);
+      if (axis.unit) {
+        const [from = new Date(0), to = from] = axis.scale.domain();
+        const starts = bucketTicks({ from: from.toISOString(), to: to.toISOString() }, axis.unit, count);
+        const labels = formatBuckets(starts, axis.unit);
+        return starts.map((start, i) => ({ offset: axis.scale(isoToUtcDate(start)), label: labels[i] ?? start }));
+      }
       const format = axis.scale.tickFormat(count);
       return axis.scale.ticks(count).map((v) => ({ offset: axis.scale(v), label: format(v) }));
     }
@@ -167,10 +179,12 @@ function ticksFor(axis: Axis, length: number, side: Side): Tick[] {
       const scale = axis.scale;
       const domain = scale.domain();
       const half = axis.kind === "band" ? axis.scale.bandwidth() / 2 : 0;
-      const every = labelInterval(domain, scale.step(), side);
-      return domain
-        .filter((_, i) => i % every === 0)
-        .map((v) => ({ offset: (scale(v) ?? 0) + half, label: v }));
+      const unit = axis.kind === "band" ? axis.unit : undefined;
+      const format = (values: string[]) => (unit ? formatBuckets(values, unit) : values);
+      const every = labelInterval(format(domain), scale.step(), side);
+      const shown = domain.filter((_, i) => i % every === 0);
+      const labels = format(shown);
+      return shown.map((v, i) => ({ offset: (scale(v) ?? 0) + half, label: labels[i] ?? v }));
     }
     default: {
       const unreachable: never = axis;
@@ -186,9 +200,9 @@ function tickCount(length: number, side: Side): number {
 
 // Show every k-th category label so neighbours don't collide: along the
 // bottom they need their text width, down the side one line height.
-function labelInterval(domain: string[], step: number, side: Side): number {
+function labelInterval(labels: string[], step: number, side: Side): number {
   if (step <= 0) return 1;
-  const needed = side === "y" ? LINE_HEIGHT : Math.max(1, ...domain.map((v) => v.length)) * CHAR_WIDTH + TICK_GAP;
+  const needed = side === "y" ? LINE_HEIGHT : Math.max(1, ...labels.map((v) => v.length)) * CHAR_WIDTH + TICK_GAP;
   return Math.max(1, Math.ceil(needed / step));
 }
 

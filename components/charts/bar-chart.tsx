@@ -6,6 +6,7 @@ import type { CartesianData } from "@/lib/data/prepare";
 import { AnnotationLayer, type Span } from "./annotation-layer";
 import { type Axes, ChartFrame, type Inner } from "./chart-frame";
 import { seriesColor } from "./colors";
+import { partialNote } from "./partial-note";
 import { valueDomain } from "./value-domain";
 
 type BarChartProps = {
@@ -39,7 +40,7 @@ export function BarChart({ spec, data, dataset }: BarChartProps) {
       .domain(domain)
       .range(horizontal ? [0, inner.width] : [inner.height, 0])
       .nice();
-    const categoryAxis = { kind: "band", scale: band, label: data.x.label } as const;
+    const categoryAxis = { kind: "band", scale: band, label: data.x.label, unit: data.x.timeUnit } as const;
     const valueAxis = { kind: "linear", scale: value, label: data.y.label, grid: true } as const;
     return horizontal ? { x: valueAxis, y: categoryAxis } : { x: categoryAxis, y: valueAxis };
   };
@@ -56,6 +57,7 @@ export function BarChart({ spec, data, dataset }: BarChartProps) {
         items: data.series.map((s, i) => ({ label: s.label, color: seriesColor(i) })),
       }}
       dataset={dataset}
+      note={partialNote(data, "Lighter")}
       height={height}
       axes={axes}
     >
@@ -89,9 +91,19 @@ export function BarChart({ spec, data, dataset }: BarChartProps) {
               const length = Math.max(0, Math.abs(b - a) - (stacked ? GAP : 0));
               if (length === 0) return null;
               const start = b >= a ? a : a - length;
-              const style = { fill: seriesColor(s.series) };
+              // Partial buckets (D-026) are drawn lighter.
+              const partial = data.x.partial?.[s.category] ?? false;
+              const style = { fill: seriesColor(s.series), ...(partial && { opacity: "var(--chart-partial-opacity)" }) };
               return horizontal ? (
-                <rect key={`${s.category}-${s.series}`} x={start} width={length} y={across} height={thickness} style={style} />
+                <rect
+                  key={`${s.category}-${s.series}`}
+                  x={start}
+                  width={length}
+                  y={across}
+                  height={thickness}
+                  data-partial={partial ? "" : undefined}
+                  style={style}
+                />
               ) : (
                 <rect
                   key={`${s.category}-${s.series}`}
@@ -99,6 +111,7 @@ export function BarChart({ spec, data, dataset }: BarChartProps) {
                   width={thickness}
                   y={b < a ? a - length : a}
                   height={length}
+                  data-partial={partial ? "" : undefined}
                   style={style}
                 />
               );

@@ -1,9 +1,19 @@
-import type { Annotation, ChartSpec, ColumnSummary, DatasetSummary, Filter } from "@/lib/spec";
+import {
+  type Annotation,
+  type ChartSpec,
+  type ColumnSummary,
+  type DatasetSummary,
+  type Filter,
+  type TimeUnit,
+  bucketEnd,
+  bucketStart,
+  requestedRange,
+} from "@/lib/spec";
 import type { Row } from "./infer";
 import { type LabelMeta, columnLabel } from "./labels";
 
 // The one pipeline from typed rows to chart-ready data:
-// filter → group and aggregate → sort → limit → shape.
+// filter → bucket → group and aggregate → sort → limit → shape.
 // Scales and stack layout are the renderer's job (D-021).
 
 export type ColumnKind = ColumnSummary["kind"];
@@ -19,7 +29,16 @@ export type SeriesData = {
 
 export type CartesianData = {
   type: "line" | "area" | "bar";
-  x: { field: string; label: string; kind: ColumnKind; values: XValue[] };
+  x: {
+    field: string;
+    label: string;
+    kind: ColumnKind;
+    // With a time unit, each value is the first day of its bucket (D-026).
+    values: XValue[];
+    timeUnit?: TimeUnit;
+    // Parallel to values; present only when some bucket is partial (D-026).
+    partial?: boolean[];
+  };
   y: { label: string };
   seriesLabel?: string;
   series: SeriesData[];
@@ -110,13 +129,17 @@ function compare(a: XValue, b: XValue): number {
 function prepareCartesian(rows: Row[], dataset: DatasetSummary, spec: CartesianSpec, meta: LabelMeta): CartesianData {
   const xColumn = findColumn(dataset, spec.x.field);
   const seriesColumn = spec.series ? findColumn(dataset, spec.series.field) : undefined;
+  const unit = spec.x.timeUnit;
+  // Filters have already run on the raw dates, so "in 2025" means exactly that.
+  const toBucket = (value: XValue): XValue => (unit && typeof value === "string" ? bucketStart(value, unit) : value);
 
   // Group by x, then series. Rows with a null x or series value are dropped.
   const groups = new Map<XValue, Map<XValue | null, Row[]>>();
   const seriesSeen = new Set<XValue>();
   for (const row of rows) {
-    const x = row[xColumn.name] ?? null;
-    if (x === null) continue;
+    const cell = row[xColumn.name] ?? null;
+    if (cell === null) continue;
+    const x = toBucket(cell);
     let key: XValue | null = null;
     if (seriesColumn) {
       key = row[seriesColumn.name] ?? null;
@@ -159,14 +182,45 @@ function prepareCartesian(rows: Row[], dataset: DatasetSummary, spec: CartesianS
     series = series.map((s) => ({ ...s, values: pick(s.values, order) }));
   }
 
+  const partial = unit ? partialBuckets(xValues, unit, xColumn, spec) : undefined;
   return {
     type: spec.type,
-    x: { field: xColumn.name, label: spec.x.label ?? columnLabel(xColumn.name, meta), kind: xColumn.kind, values: xValues },
+    x: {
+      field: xColumn.name,
+      label: spec.x.label ?? (unit ? UNIT_LABELS[unit] : columnLabel(xColumn.name, meta)),
+      kind: xColumn.kind,
+      values: xValues,
+      ...(unit && { timeUnit: unit }),
+      ...(partial && { partial }),
+    },
     y: { label: yLabel },
     ...(seriesColumn && { seriesLabel: columnLabel(seriesColumn.name, meta) }),
     series,
-    annotations: spec.annotations ?? [],
+    // Moved to the start of their bucket, so they land on a bar or point.
+    annotations: (spec.annotations ?? []).map((a) =>
+      a.kind === "point" ? { ...a, x: toBucket(a.x) } : { ...a, from: toBucket(a.from), to: toBucket(a.to) },
+    ),
   };
+}
+
+const UNIT_LABELS: Record<TimeUnit, string> = {
+  day: "Day",
+  week: "Week commencing",
+  month: "Month",
+  quarter: "Quarter",
+  year: "Year",
+};
+
+// A bucket reaching past the dates the spec asks for holds only some of its
+// days, so a sum or count there runs low; the renderer marks it (D-026).
+// Other aggregates don't shrink with fewer days. A gap in the data, such as
+// a closure, is real and not flagged.
+function partialBuckets(values: XValue[], unit: TimeUnit, column: ColumnSummary, spec: CartesianSpec): boolean[] | undefined {
+  if (spec.y.aggregate !== "sum" && spec.y.aggregate !== "count") return undefined;
+  const range = requestedRange(column, spec.filters ?? []);
+  if (!range) return undefined;
+  const flags = values.map((v) => String(v) < range.from || bucketEnd(String(v), unit) > range.to);
+  return flags.some(Boolean) ? flags : undefined;
 }
 
 function prepareScatter(rows: Row[], dataset: DatasetSummary, spec: ScatterSpec, meta: LabelMeta): ScatterData {

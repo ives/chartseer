@@ -1,5 +1,6 @@
 import type { ColumnSummary, DatasetSummary } from "./columns";
 import type { ChartSpec, Filter, Measure } from "./schema";
+import { bucketCount, requestedRange } from "./time-unit";
 
 // Semantic checks: does a structurally valid spec make sense for this dataset?
 // Every message is read by the model on its retry, so each one says what is
@@ -156,11 +157,29 @@ export function validateSpec(spec: ChartSpec, dataset: DatasetSummary): string[]
     case "area":
     case "bar": {
       const x = findColumn("x.field", spec.x.field);
+      const timeUnit = spec.x.timeUnit;
+      if (x && timeUnit && x.kind !== "date") {
+        errors.push(
+          `x.timeUnit: "${x.name}" is a ${x.kind} column; timeUnit groups dates into days, weeks, months, quarters or years, ` +
+            `so it needs a date column. Date columns: ${names(columns.filter((c) => c.kind === "date"))}. ` +
+            `Remove timeUnit to plot "${x.name}" as it is.`,
+        );
+      }
       checkMeasure(spec.y);
       if (spec.series) checkSeries("series.field", spec.series.field);
       if (spec.type === "bar" && x && spec.limit === undefined) {
-        const count = effectiveDistinct(x);
-        if (count > MAX_BAR_CATEGORIES) {
+        if (timeUnit && x.kind === "date") {
+          // Each bar is a period, so count the periods the dates span.
+          const range = requestedRange(x, filters);
+          const count = Math.min(effectiveDistinct(x), range ? bucketCount(range, timeUnit) : 0);
+          if (count > MAX_BAR_CATEGORIES) {
+            errors.push(
+              `x.timeUnit: the dates span ${count} ${timeUnit}s; a bar chart shows at most ${MAX_BAR_CATEGORIES}. ` +
+                `Use a longer timeUnit, narrow the dates with gte and lte filters on "${x.name}", or use a line chart.`,
+            );
+          }
+        } else if (effectiveDistinct(x) > MAX_BAR_CATEGORIES) {
+          const count = effectiveDistinct(x);
           errors.push(
             `x.field: "${x.name}" has ${count} values; a bar chart shows at most ${MAX_BAR_CATEGORIES}. ` +
               `Add limit (e.g. 15, with sort "desc" for the top 15), or choose a column with fewer values.`,

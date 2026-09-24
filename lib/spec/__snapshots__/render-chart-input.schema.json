@@ -111,6 +111,17 @@
                 "label": {
                   "type": "string",
                   "description": "Axis title to show instead of the column name"
+                },
+                "timeUnit": {
+                  "type": "string",
+                  "enum": [
+                    "day",
+                    "week",
+                    "month",
+                    "quarter",
+                    "year"
+                  ],
+                  "description": "Only for a date column. Groups dates into calendar days, weeks (starting Monday), months, quarters or years before aggregating, giving one x value per period. Omit to plot each distinct date as it is."
                 }
               },
               "required": [
@@ -377,6 +388,17 @@
                 "label": {
                   "type": "string",
                   "description": "Axis title to show instead of the column name"
+                },
+                "timeUnit": {
+                  "type": "string",
+                  "enum": [
+                    "day",
+                    "week",
+                    "month",
+                    "quarter",
+                    "year"
+                  ],
+                  "description": "Only for a date column. Groups dates into calendar days, weeks (starting Monday), months, quarters or years before aggregating, giving one x value per period. Omit to plot each distinct date as it is."
                 }
               },
               "required": [
@@ -647,6 +669,17 @@
                 "label": {
                   "type": "string",
                   "description": "Axis title to show instead of the column name"
+                },
+                "timeUnit": {
+                  "type": "string",
+                  "enum": [
+                    "day",
+                    "week",
+                    "month",
+                    "quarter",
+                    "year"
+                  ],
+                  "description": "Only for a date column. Groups dates into calendar days, weeks (starting Monday), months, quarters or years before aggregating, giving one x value per period. Omit to plot each distinct date as it is."
                 }
               },
               "required": [

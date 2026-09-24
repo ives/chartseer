@@ -25,6 +25,10 @@
   --chart-muted: #6b6a65;
   --chart-annotation: rgba(11, 11, 11, 0.06);
   --chart-annotation-line: #898781;
+
+  /* Partial time buckets (D-026): faded bars, dashed line segments. */
+  --chart-partial-opacity: 0.4;
+  --chart-partial-dash: 4 3;
 }
 
 @theme inline {
@@ -57,6 +61,9 @@
     --chart-muted: #a3a29b;
     --chart-annotation: rgba(255, 255, 255, 0.08);
     --chart-annotation-line: #898781;
+
+    /* A faded bar loses contrast faster on a dark surface. */
+    --chart-partial-opacity: 0.5;
   }
 }
 

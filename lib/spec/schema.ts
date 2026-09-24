@@ -25,7 +25,14 @@ const annotationValue = (key: string) =>
 
 const Label = z.string().describe("Axis title to show instead of the column name");
 
-const Dimension = z.strictObject({ field: Field, label: Label.optional() });
+const TimeUnit = z
+  .enum(["day", "week", "month", "quarter", "year"])
+  .describe(
+    "Only for a date column. Groups dates into calendar days, weeks (starting Monday), months, quarters or years before aggregating, giving one x value per period. Omit to plot each distinct date as it is.",
+  );
+export type TimeUnit = z.infer<typeof TimeUnit>;
+
+const Dimension = z.strictObject({ field: Field, label: Label.optional(), timeUnit: TimeUnit.optional() });
 
 const CountMeasure = z
   .strictObject({

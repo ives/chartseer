@@ -232,6 +232,82 @@ describe("shape", () => {
   });
 });
 
+describe("time buckets", () => {
+  // Wednesday 1 January to Wednesday 15 January 2025.
+  const csv = "date,shop,scoops\n2025-01-01,A,1\n2025-01-05,A,2\n2025-01-06,A,4\n2025-01-12,B,8\n2025-01-15,A,16\n";
+  const weekly = { ...base, type: "line", x: { field: "date", timeUnit: "week" }, y: { field: "scoops", aggregate: "sum" } } as const;
+  const series = (data: CartesianData) => data.series.map((s) => [s.key, s.values]);
+
+  it("groups dates into weeks starting on Monday, titled by the unit", () => {
+    const data = cartesian(csv, { ...weekly, series: { field: "shop" } });
+    expect(data.x).toMatchObject({ values: ["2024-12-30", "2025-01-06", "2025-01-13"], timeUnit: "week", label: "Week commencing" });
+    expect(series(data)).toEqual([
+      ["A", [3, 4, 16]],
+      ["B", [null, 8, null]],
+    ]);
+  });
+
+  it("filters raw dates before bucketing", () => {
+    const data = cartesian(csv, { ...weekly, filters: [{ field: "date", op: "gte", value: "2025-01-05" }] });
+    expect(data.series[0]?.values).toEqual([2, 12, 16]);
+  });
+
+  it("moves annotations to the start of their bucket", () => {
+    const data = cartesian(csv, {
+      ...weekly,
+      annotations: [
+        { kind: "point", x: "2025-01-08", label: "p" },
+        { kind: "range", from: "2025-01-02", to: "2025-01-14", label: "r" },
+      ],
+    });
+    expect(data.annotations).toEqual([
+      { kind: "point", x: "2025-01-06", label: "p" },
+      { kind: "range", from: "2024-12-30", to: "2025-01-13", label: "r" },
+    ]);
+  });
+
+  it("flags buckets that reach past the requested dates, for sum and count", () => {
+    expect(cartesian(csv, weekly).x.partial).toEqual([true, false, true]);
+    expect(cartesian(csv, { ...weekly, y: { aggregate: "count" } }).x.partial).toEqual([true, false, true]);
+    expect(cartesian(csv, { ...weekly, x: { field: "date", timeUnit: "month" } }).x.partial).toEqual([true]);
+  });
+
+  it("measures partial buckets against the filtered range, not the rows present", () => {
+    // Only B sells in the week of 6 January, but the week itself is whole.
+    const data = cartesian(csv, {
+      ...weekly,
+      filters: [
+        { field: "date", op: "gte", value: "2025-01-06" },
+        { field: "date", op: "lte", value: "2025-01-12" },
+        { field: "shop", op: "eq", value: "B" },
+      ],
+    });
+    expect(data.x.values).toEqual(["2025-01-06"]);
+    expect(data.x).not.toHaveProperty("partial");
+  });
+
+  it("flags nothing for other aggregates, or for days", () => {
+    for (const aggregate of ["mean", "median", "min", "max"] as const) {
+      expect(cartesian(csv, { ...weekly, y: { field: "scoops", aggregate } }).x).not.toHaveProperty("partial");
+    }
+    expect(cartesian(csv, { ...weekly, x: { field: "date", timeUnit: "day" } }).x).not.toHaveProperty("partial");
+  });
+
+  it("keeps partial flags with their buckets through sort and limit", () => {
+    const data = cartesian(csv, { ...weekly, type: "bar", sort: "desc", limit: 2 });
+    expect(data.x.values).toEqual(["2025-01-13", "2025-01-06"]);
+    expect(data.x.partial).toEqual([true, false]);
+  });
+
+  it("prefers the spec's label, and leaves dates alone without a time unit", () => {
+    expect(cartesian(csv, { ...weekly, x: { field: "date", timeUnit: "week", label: "Week" } }).x.label).toBe("Week");
+    const daily = cartesian(csv, { ...weekly, x: { field: "date" } });
+    expect(daily.x.values).toEqual(["2025-01-01", "2025-01-05", "2025-01-06", "2025-01-12", "2025-01-15"]);
+    expect(daily.x).not.toHaveProperty("timeUnit");
+    expect(daily.x).not.toHaveProperty("partial");
+  });
+});
+
 describe("scatter", () => {
   const csv = "day,shop,temp,scoops\n2025-01-02,A,10,5\n2025-01-01,A,8,\n2025-01-01,B,8,4\n2025-01-02,B,10,6\n2025-01-01,A,8,2\n";
   const spec = { ...base, type: "scatter", x: { field: "temp" }, y: { field: "scoops" } } as const;
@@ -323,11 +399,12 @@ describe("the example specs on the real data", () => {
     return prepareChartData(rows, summary, example.spec);
   }
 
-  function runCartesian(id: string): CartesianData {
-    const data = run(id);
+  function asCartesian(data: ChartData): CartesianData {
     if (data.type === "scatter") throw new Error("expected cartesian data");
     return data;
   }
+
+  const runCartesian = (id: string) => asCartesian(run(id));
 
   it("prepares every example", () => {
     for (const example of examples) expect(() => run(example.id)).not.toThrow();
@@ -345,13 +422,45 @@ describe("the example specs on the real data", () => {
     values.slice(1).forEach((v, i) => expect(v).toBeLessThan(values[i] ?? 0));
   });
 
-  it("leaves Brixton's 2025 line null during its refit", () => {
-    const data = runCartesian("gelato-daily-2025");
+  it("leaves Brixton's 2025 daily line null during its refit", () => {
+    const daily: ChartSpec = {
+      ...base,
+      type: "line",
+      x: { field: "date" },
+      y: { field: "scoops", aggregate: "sum" },
+      series: { field: "shop" },
+      filters: [
+        { field: "date", op: "gte", value: "2025-01-01" },
+        { field: "date", op: "lte", value: "2025-12-31" },
+      ],
+    };
+    const data = asCartesian(prepareChartData(gelato.rows, gelato.summary, daily));
     const brixton = data.series.find((s) => s.key === "Brixton");
     const on = (date: string) => brixton?.values[data.x.values.indexOf(date)];
     for (let day = 3; day <= 23; day++) expect(on(`2025-02-${String(day).padStart(2, "0")}`)).toBeNull();
     expect(on("2025-02-02")).toEqual(expect.any(Number));
     expect(on("2025-02-24")).toEqual(expect.any(Number));
+  });
+
+  it("leaves Brixton's weekly line null for the three weeks of its refit, and flags only the edge weeks", () => {
+    const data = runCartesian("gelato-weekly-2025");
+    expect(data.x.values).toHaveLength(53);
+    expect(data.x.values[0]).toBe("2024-12-30");
+    expect(data.x.values[52]).toBe("2025-12-29");
+    expect(data.x.partial?.flatMap((p, i) => (p ? [data.x.values[i]] : []))).toEqual(["2024-12-30", "2025-12-29"]);
+    const brixton = data.series.find((s) => s.key === "Brixton");
+    const on = (week: string) => brixton?.values[data.x.values.indexOf(week)];
+    for (const week of ["2025-02-03", "2025-02-10", "2025-02-17"]) expect(on(week)).toBeNull();
+    expect(on("2025-01-27")).toEqual(expect.any(Number));
+    expect(on("2025-02-24")).toEqual(expect.any(Number));
+  });
+
+  it("gives 24 whole months of revenue", () => {
+    const data = runCartesian("gelato-monthly-revenue");
+    expect(data.x.values).toHaveLength(24);
+    expect(data.x.values[0]).toBe("2024-01-01");
+    expect(data.x.values[23]).toBe("2025-12-01");
+    expect(data.x).not.toHaveProperty("partial");
   });
 
   it("draws one point per trading day", () => {
