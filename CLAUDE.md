@@ -24,13 +24,13 @@ app/                  Routes. Wires things together; no business logic.
 lib/spec/             The contract: schema, semantic validation, example specs. Depends only on zod.
 lib/data/             CSV parsing, column inference, spec → chart data. Pure functions.
 lib/ai/               Model selection, system prompt, tool definition. Server-only.
-components/charts/    D3 renderers. Import types from lib/spec only.
+components/charts/    D3 renderers. Import types from lib/spec and lib/data only.
 components/chat/      Chat UI.
 components/ui/        shadcn/ui primitives. Generated; edit sparingly.
 ```
 
 Imports flow one way: `app → components, lib/ai → lib/data → lib/spec`.
-Nothing imports from `app/`. `components/charts/` never imports from `lib/ai/`.
+Nothing imports from `app/`. `components/charts/` may import types from `lib/spec/` and `lib/data/`, never from `lib/ai/`.
 
 ## Commands
 

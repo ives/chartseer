@@ -30,7 +30,7 @@ sequenceDiagram
   M-->>S: Streamed text + renderChart({ spec })
   S->>S: Validate: structure (Zod), then against columns
   S-->>B: Stream text + validated spec
-  B->>B: prepareChartData(rows, spec)
+  B->>B: prepareChartData(rows, dataset, spec)
   B->>U: Rendered chart
 ```
 
@@ -138,7 +138,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 - File size limit: 5 MB.
 - Column inference produces a summary per column (`lib/spec/columns.ts`): `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, and up to 5 example values. A category column with 50 or fewer distinct values lists **all** of them instead, in natural order: calendar order for weekdays, months and seasons, otherwise the order of first appearance in the file (D-015).
 - The model receives the summary, the row count and at most 10 sample rows — never the full dataset.
-- `prepareChartData(rows, columns, spec)` is the one pure pipeline from raw rows to chart-ready data: **filter → aggregate → sort → shape**. Renderers never transform data themselves.
+- `prepareChartData(rows, dataset, spec)` is the one pure pipeline from typed rows to chart-ready data: **filter → group and aggregate → sort → limit → shape** (D-021). Renderers never transform data themselves.
 
 ## 8. Conversation and refinement
 

@@ -122,3 +122,21 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 **Context:** `inferDataset` has to choose each column's kind from its text alone, with no settings for the user to fill in.
 **Decision:** A column is `number` if every non-empty cell is a plain decimal (optionally with an exponent), `date` if every one is an ISO 8601 date or date-time that exists on the calendar, otherwise `category` — unless it has more than 50 distinct values (`MAX_LISTED_VALUES`) and more than half its non-empty cells are distinct, which makes it `text`. The 50 floor keeps small files' columns as categories: in a 10-row file almost every column is mostly unique. Dates stay as their original ISO strings. Thousands separators, currency symbols, decimal commas and non-ISO dates (`24/09/2026`) are not recognised: they are ambiguous across locales, both bundled files are clean, and a wrong guess is worse than a category. Category order is the dataset's own `columnOrder` first, then a known sequence (weekdays, months) when every value belongs to it, then first appearance (D-015). Seasons have no built-in sequence; bikes sets theirs in `lib/data/datasets.ts`.
 **Consequences:** A station name repeated across 25,000 hires is a category (805 distinct); a column of free-text notes is text. Uploaded files with locale-formatted numbers or dates come through as categories until a real case justifies more parsing.
+
+## D-020 · 2026-09-24 · Chart components may import types from `lib/data`
+
+**Context:** Renderers take a validated spec and the output of `prepareChartData`. That output's type, `ChartData`, belongs beside the pipeline that produces it, in `lib/data/prepare.ts`; putting it in `lib/spec` would make the contract depend on how data is shaped.
+**Decision:** `components/charts/` may import types from `lib/spec/` and `lib/data/`, and never from `lib/ai/`.
+**Consequences:** `lib/data` is pure (no fetching, no React, no AI), so charts still know nothing about the model, chat or the network. Import direction is unchanged: `components → lib/data → lib/spec`.
+
+## D-021 · 2026-09-24 · `ChartData` conventions
+
+**Context:** `prepareChartData` has to settle every data question so renderers only do scales and layout.
+**Decision:**
+- A missing x × series combination is `null`, never 0. Renderers decide: stacks treat null as 0, lines show a gap.
+- Filters: a null cell fails every op except `neq`, so "shop ≠ Brixton" keeps rows with no shop.
+- Rows with a null x, series, group or `per` value are dropped.
+- Order: bar `sort` orders by value (by total with a series), stably, with empty totals last. Otherwise categories follow the column's value list, and numbers and dates ascend. `limit` applies after sorting.
+- x values are only those present after filtering. Dates are not gap-filled, so Christmas Day, when every gelato shop is shut, is simply absent.
+- Axis and series labels are resolved here: the spec's label, else the column name, else "Count" or "Sum of scoops" and so on.
+**Consequences:** Renderers never aggregate or reorder. Missing combinations stay visible (Earl Grey before launch, Brixton's refit). A line across a day with no rows at all joins its neighbours; if that misleads, gap-filling needs a known date granularity and belongs here, not in the renderer.
