@@ -71,6 +71,31 @@ describe("ISO dates", () => {
   });
 });
 
+describe("scatter per", () => {
+  const daily: ChartSpec = {
+    version: 1,
+    type: "scatter",
+    title: "t",
+    per: { field: "date" },
+    x: { field: "max_temp_c", aggregate: "mean" },
+    y: { field: "scoops", aggregate: "sum" },
+  };
+
+  it("accepts per with a group", () => {
+    expect(validateSpec({ ...daily, group: { field: "shop" } }, gelatoSummary)).toEqual([]);
+  });
+
+  it("allows a log scale on a count", () => {
+    expect(validateSpec({ ...daily, y: { aggregate: "count", scale: "log" } }, gelatoSummary)).toEqual([]);
+  });
+
+  it("still checks a log scale against the aggregated column", () => {
+    expect(validateSpec({ ...daily, x: { field: "rain_mm", aggregate: "sum", scale: "log" } }, gelatoSummary)).toEqual([
+      expect.stringContaining('x.scale: a log scale needs every value above zero, but the smallest value of "rain_mm" is 0.'),
+    ]);
+  });
+});
+
 it("reports a missing column once, without follow-on errors", () => {
   const spec: ChartSpec = { ...areaBar, x: { field: "nope" }, annotations: [{ kind: "point", x: 3, label: "n" }] };
   expect(validateSpec(spec, bikesSummary)).toHaveLength(1);

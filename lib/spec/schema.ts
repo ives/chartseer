@@ -53,16 +53,28 @@ const Measure = z
   .describe("The value axis. Use aggregate \"count\" to count rows; otherwise name a numeric field.");
 export type Measure = z.infer<typeof Measure>;
 
-const NumericAxis = z
+// One object for both scatter modes. Which keys are required depends on
+// whether the spec has `per`, so validateSpec checks that (D-017).
+const ScatterAxis = z
   .strictObject({
-    field: Field.describe("Exact name of a numeric column from the dataset summary"),
+    field: Field.optional().describe(
+      "Exact name of a numeric column from the dataset summary. Required, except with aggregate \"count\".",
+    ),
+    aggregate: z
+      .enum(["count", "sum", "mean", "median", "min", "max"])
+      .optional()
+      .describe(
+        "Only with per, and then required: how to combine the rows behind each point. \"count\" counts them and takes no field; the others combine a numeric field.",
+      ),
     label: Label.optional(),
     scale: z
       .enum(["linear", "log"])
       .optional()
       .describe("Default linear. Use log only when every value is above zero and they span several orders of magnitude."),
   })
-  .describe("One row per point: values are plotted as they are, not aggregated");
+  .describe(
+    "Without per: a numeric field, plotted as it is, one point per row. With per: an aggregate, plus a numeric field unless it is \"count\".",
+  );
 
 const ComparisonFilter = z
   .strictObject({
@@ -174,10 +186,18 @@ const BarSpec = Base.extend({
 
 const ScatterSpec = Base.extend({
   type: z.literal("scatter"),
-  x: NumericAxis,
-  y: NumericAxis,
-  group: Series.optional().describe("Split points into groups by the values of this category column (at most 12)"),
-}).describe("Scatter plot: one point per row, showing how two numeric columns relate");
+  x: ScatterAxis,
+  y: ScatterAxis,
+  per: z
+    .strictObject({ field: Field })
+    .optional()
+    .describe(
+      "Draw one point per value of this column (e.g. per date), combining its rows with each axis's aggregate. Omit to draw one point per row.",
+    ),
+  group: Series.optional().describe(
+    "Split points into groups by the values of this category column (at most 12). With per, points are grouped by per and group together.",
+  ),
+}).describe("Scatter plot: one point per row, or per value of a column, showing how two numeric quantities relate");
 
 export const ChartSpec = z
   .discriminatedUnion("type", [LineSpec, AreaSpec, BarSpec, ScatterSpec], {

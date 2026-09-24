@@ -104,3 +104,9 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 **Context:** ARCHITECTURE §14 asked for two bundled datasets: one real and time-based, one more playful.
 **Decision:** TfL Santander Cycles journeys (real, sampled to about 25,000 hires at 1 in 30.8) and Gelateria Nebbia (an invented five-shop gelato chain with planted stories). Sources, licences, columns and rebuild steps are in `docs/DATA.md`.
 **Consequences:** The bikes data needs TfL's attribution wherever it is shown, and its counts are a sample, not TfL totals — the app must show both rather than relying on the model (§14). Gelato numbers are fictional, and the demo should say so. Both files are rebuilt by seeded scripts in `scripts/`.
+
+## D-017 · 2026-09-24 · Scatter `per` for aggregated points
+
+**Context:** A scatter drew one point per row. Gelato has one row per shop, flavour and day, so "do hotter days sell more?" plotted 22,964 per-flavour points instead of 729 daily totals.
+**Decision:** Scatter takes an optional `per: { field }`. With it, rows are grouped by `per` (and `group`, if set) and each axis carries an aggregate: `count` with no field, or `sum`, `mean`, `median`, `min` or `max` with a numeric field. Without it, scatter works as before and aggregates are not allowed. The axis is one strict object, `{ field?, aggregate?, label?, scale? }`, and `validateSpec` enforces which keys each mode needs, not a Zod union of axis shapes. Whether an aggregate is required depends on `per`, a rule spanning fields that has to live in `validateSpec` anyway. A union would also swallow precise errors (a bad `scale`) into one generic message.
+**Consequences:** On scatter axes, "count takes no field" (D-014) is checked by `validateSpec` rather than by Zod, and the JSON Schema shows `field` as optional; the descriptions carry the rule. A log scale is always allowed on a `count` axis. `prepareChartData` (M2) must group by `per` and `group` when `per` is set.

@@ -938,8 +938,20 @@
               "type": "object",
               "properties": {
                 "field": {
+                  "description": "Exact name of a numeric column from the dataset summary. Required, except with aggregate \"count\".",
+                  "type": "string"
+                },
+                "aggregate": {
+                  "description": "Only with per, and then required: how to combine the rows behind each point. \"count\" counts them and takes no field; the others combine a numeric field.",
                   "type": "string",
-                  "description": "Exact name of a numeric column from the dataset summary"
+                  "enum": [
+                    "count",
+                    "sum",
+                    "mean",
+                    "median",
+                    "min",
+                    "max"
+                  ]
                 },
                 "label": {
                   "type": "string",
@@ -954,18 +966,27 @@
                   ]
                 }
               },
-              "required": [
-                "field"
-              ],
               "additionalProperties": false,
-              "description": "One row per point: values are plotted as they are, not aggregated"
+              "description": "Without per: a numeric field, plotted as it is, one point per row. With per: an aggregate, plus a numeric field unless it is \"count\"."
             },
             "y": {
               "type": "object",
               "properties": {
                 "field": {
+                  "description": "Exact name of a numeric column from the dataset summary. Required, except with aggregate \"count\".",
+                  "type": "string"
+                },
+                "aggregate": {
+                  "description": "Only with per, and then required: how to combine the rows behind each point. \"count\" counts them and takes no field; the others combine a numeric field.",
                   "type": "string",
-                  "description": "Exact name of a numeric column from the dataset summary"
+                  "enum": [
+                    "count",
+                    "sum",
+                    "mean",
+                    "median",
+                    "min",
+                    "max"
+                  ]
                 },
                 "label": {
                   "type": "string",
@@ -980,14 +1001,25 @@
                   ]
                 }
               },
+              "additionalProperties": false,
+              "description": "Without per: a numeric field, plotted as it is, one point per row. With per: an aggregate, plus a numeric field unless it is \"count\"."
+            },
+            "per": {
+              "description": "Draw one point per value of this column (e.g. per date), combining its rows with each axis's aggregate. Omit to draw one point per row.",
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact column name from the dataset summary"
+                }
+              },
               "required": [
                 "field"
               ],
-              "additionalProperties": false,
-              "description": "One row per point: values are plotted as they are, not aggregated"
+              "additionalProperties": false
             },
             "group": {
-              "description": "Split points into groups by the values of this category column (at most 12)",
+              "description": "Split points into groups by the values of this category column (at most 12). With per, points are grouped by per and group together.",
               "type": "object",
               "properties": {
                 "field": {
@@ -1009,7 +1041,7 @@
             "y"
           ],
           "additionalProperties": false,
-          "description": "Scatter plot: one point per row, showing how two numeric columns relate"
+          "description": "Scatter plot: one point per row, or per value of a column, showing how two numeric quantities relate"
         }
       ],
       "description": "A complete chart. Describe what it means; the app decides how it looks."

@@ -51,7 +51,7 @@ Import direction is one-way: `app → components, lib/ai → lib/data → lib/sp
 
 ## 5. The chart spec (v1 draft — to be refined in Milestone 1)
 
-> **Superseded:** `lib/spec/schema.ts` is now the source of truth. The sketch below is kept for history; D-014 in `docs/DECISIONS.md` lists what changed.
+> **Superseded:** `lib/spec/schema.ts` is now the source of truth. The sketch below is kept for history; D-014 and D-017 in `docs/DECISIONS.md` list what changed.
 
 Design rules:
 
@@ -120,7 +120,8 @@ export type ChartSpec = z.infer<typeof ChartSpec>;
 2. **Semantic** (`validateSpec(spec, dataset)`, only on a well-formed spec): does it make sense for *this* dataset?
    - every referenced field exists (x, y, series, group, filters);
    - measures with a field are numeric (`count` takes no field);
-   - scatter axes are numeric, and a log scale needs the column's minimum above zero;
+   - scatter axes: without `per`, each is a numeric `field` with no aggregate (one point per row). With `per`, each needs an aggregate: `count` takes no field; `sum`, `mean`, `median`, `min` and `max` take a numeric field. `per.field` must exist;
+   - a log scale on a scatter axis needs the column's minimum above zero (a `count` axis is exempt);
    - bar charts show at most 50 categories unless `limit` is set;
    - series and scatter groups have at most 12 values;
    - an `eq` or `in` filter on the same column narrows its value count for the two checks above;

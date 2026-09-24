@@ -96,6 +96,20 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     } satisfies ChartSpec,
   },
   {
+    id: "gelato-daily-heat",
+    dataset: gelatoSummary,
+    spec: {
+      version: 1,
+      type: "scatter",
+      title: "Hotter days sell more gelato, up to about 30°C",
+      subtitle: "One point per day · all shops and flavours, 2024–2025",
+      per: { field: "date" },
+      // The same on every row of a day, so the mean is that day's value.
+      x: { field: "max_temp_c", aggregate: "mean", label: "Maximum temperature (°C)" },
+      y: { field: "scoops", aggregate: "sum", label: "Scoops" },
+    } satisfies ChartSpec,
+  },
+  {
     id: "gelato-revenue-by-flavour",
     dataset: gelatoSummary,
     spec: {

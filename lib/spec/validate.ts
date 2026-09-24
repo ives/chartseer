@@ -10,6 +10,7 @@ const MAX_SERIES_VALUES = 12;
 const ORDER_OPS = new Set<Filter["op"]>(["gt", "gte", "lt", "lte"]);
 
 type Value = string | number;
+type ScatterAxis = Extract<ChartSpec, { type: "scatter" }>["x"];
 
 export function validateSpec(spec: ChartSpec, dataset: DatasetSummary): string[] {
   const errors: string[] = [];
@@ -49,21 +50,52 @@ export function validateSpec(spec: ChartSpec, dataset: DatasetSummary): string[]
     }
   }
 
-  function checkScatterAxis(axis: "x" | "y", field: string, scale: "linear" | "log" | undefined) {
-    const column = findColumn(`${axis}.field`, field, { label: "Numeric columns", columns: numeric });
-    if (!column) return;
-    if (column.kind !== "number") {
+  // Without per, an axis is a plain numeric field. With per, it needs an
+  // aggregate, and a numeric field unless the aggregate is count.
+  function checkScatterAxis(key: "x" | "y", axis: ScatterAxis, per: boolean) {
+    const { field, aggregate, scale } = axis;
+    if (!per && aggregate !== undefined) {
       errors.push(
-        `${axis}.field: "${column.name}" is a ${column.kind} column; scatter axes need numbers. Numeric columns: ${names(numeric)}.`,
+        `${key}.aggregate: an aggregate needs per. Remove aggregate to draw one point per row, ` +
+          `or add per (e.g. per: { field: "date" }) to draw one point per value of that column.`,
       );
       return;
     }
+    if (per && aggregate === undefined) {
+      errors.push(
+        `${key}.aggregate: with per set, each point combines several rows, so ${key} needs an aggregate: ` +
+          `"count" to count them (no field), or "sum", "mean", "median", "min" or "max" with a numeric field.`,
+      );
+      return;
+    }
+    if (aggregate === "count") {
+      if (field !== undefined) {
+        errors.push(
+          `${key}.field: count counts rows and takes no field. Remove field, or use "sum", "mean", "median", "min" or "max" to combine "${field}".`,
+        );
+      }
+      return; // A count is at least 1, so a log scale is always fine.
+    }
+    if (field === undefined) {
+      const need = aggregate === undefined ? "name a numeric column to plot" : `${aggregate} needs a numeric column`;
+      errors.push(`${key}.field: ${need}. Numeric columns: ${names(numeric)}.`);
+      return;
+    }
+    const column = findColumn(`${key}.field`, field, { label: "Numeric columns", columns: numeric });
+    if (!column) return;
+    if (column.kind !== "number") {
+      errors.push(
+        `${key}.field: "${column.name}" is a ${column.kind} column; scatter axes need numbers. Numeric columns: ${names(numeric)}.`,
+      );
+      return;
+    }
+    // Sum, mean, median, min and max of values above zero are all above zero.
     if (scale !== "log") return;
     if (column.min === undefined) {
-      errors.push(`${axis}.scale: "${column.name}" has no values, so it can't use a log scale. Use "linear".`);
+      errors.push(`${key}.scale: "${column.name}" has no values, so it can't use a log scale. Use "linear".`);
     } else if (column.min <= 0) {
       errors.push(
-        `${axis}.scale: a log scale needs every value above zero, but the smallest value of "${column.name}" is ${column.min}. Use "linear".`,
+        `${key}.scale: a log scale needs every value above zero, but the smallest value of "${column.name}" is ${column.min}. Use "linear".`,
       );
     }
   }
@@ -148,8 +180,9 @@ export function validateSpec(spec: ChartSpec, dataset: DatasetSummary): string[]
       break;
     }
     case "scatter":
-      checkScatterAxis("x", spec.x.field, spec.x.scale);
-      checkScatterAxis("y", spec.y.field, spec.y.scale);
+      checkScatterAxis("x", spec.x, spec.per !== undefined);
+      checkScatterAxis("y", spec.y, spec.per !== undefined);
+      if (spec.per) findColumn("per.field", spec.per.field);
       if (spec.group) checkSeries("group.field", spec.group.field);
       break;
     default: {

@@ -92,6 +92,38 @@ describe("parseSpec rejects", () => {
       { ...gelatoScatter, x: { field: "rain_mm", scale: "log" } },
       'x.scale: a log scale needs every value above zero, but the smallest value of "rain_mm" is 0.',
     ],
+    [
+      "a scatter aggregate without per",
+      { ...gelatoScatter, y: { field: "scoops", aggregate: "sum" } },
+      "y.aggregate: an aggregate needs per. Remove aggregate to draw one point per row, or add per",
+    ],
+    [
+      "per without an aggregate",
+      { ...gelatoScatter, per: { field: "date" }, x: { field: "max_temp_c", aggregate: "mean" } },
+      'y.aggregate: with per set, each point combines several rows, so y needs an aggregate: "count" to count them (no field)',
+    ],
+    [
+      "a scatter count with a field",
+      { ...gelatoScatter, per: { field: "date" }, x: { field: "max_temp_c", aggregate: "mean" }, y: { field: "scoops", aggregate: "count" } },
+      'y.field: count counts rows and takes no field. Remove field, or use "sum", "mean", "median", "min" or "max" to combine "scoops".',
+    ],
+    [
+      "a scatter sum with no field",
+      { ...gelatoScatter, per: { field: "date" }, x: { field: "max_temp_c", aggregate: "mean" }, y: { aggregate: "sum" } },
+      'y.field: sum needs a numeric column. Numeric columns: "scoops",',
+    ],
+    ["a scatter axis with no field", { ...gelatoScatter, x: {} }, 'x.field: name a numeric column to plot. Numeric columns: "scoops",'],
+    [
+      "per on an unknown column",
+      { ...gelatoScatter, per: { field: "day" }, x: { field: "max_temp_c", aggregate: "mean" }, y: { aggregate: "count" } },
+      'per.field: there is no column "day".',
+    ],
+    [
+      "per with a sum over a category column",
+      { ...gelatoScatter, per: { field: "date" }, x: { field: "weather", aggregate: "sum" }, y: { aggregate: "count" } },
+      'x.field: "weather" is a category column; scatter axes need numbers.',
+    ],
+    ["an unknown scatter scale", { ...gelatoScatter, x: { field: "max_temp_c", scale: "logarithmic" } }, "x.scale: Invalid option"],
     ["more than 50 bars", { ...gelatoBar, x: { field: "date" } }, 'x.field: "date" has 729 values; a bar chart shows at most 50. Add limit'],
     ["a series with more than 12 values", { ...gelatoLine, series: { field: "date" } }, 'series.field: "date" has 729 values; a series can have at most 12.'],
     ["a group with more than 12 values", { ...gelatoScatter, group: { field: "rain_mm" } }, 'group.field: "rain_mm" has 107 values'],
