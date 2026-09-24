@@ -1,5 +1,6 @@
 import type { Annotation, ChartSpec, ColumnSummary, DatasetSummary, Filter } from "@/lib/spec";
 import type { Row } from "./infer";
+import { type LabelMeta, columnLabel } from "./labels";
 
 // The one pipeline from typed rows to chart-ready data:
 // filter → group and aggregate → sort → limit → shape.
@@ -52,16 +53,17 @@ type CartesianSpec = Extract<ChartSpec, { type: "line" | "area" | "bar" }>;
 type ScatterSpec = Extract<ChartSpec, { type: "scatter" }>;
 type ScatterAxis = ScatterSpec["x"];
 
-// Expects a spec that has passed parseSpec for this dataset.
-export function prepareChartData(rows: Row[], dataset: DatasetSummary, spec: ChartSpec): ChartData {
+// Expects a spec that has passed parseSpec for this dataset. `meta` supplies
+// display labels; without it, labels are derived from column names (D-025).
+export function prepareChartData(rows: Row[], dataset: DatasetSummary, spec: ChartSpec, meta: LabelMeta = {}): ChartData {
   const kept = filterRows(rows, spec.filters ?? []);
   switch (spec.type) {
     case "line":
     case "area":
     case "bar":
-      return prepareCartesian(kept, dataset, spec);
+      return prepareCartesian(kept, dataset, spec, meta);
     case "scatter":
-      return prepareScatter(kept, dataset, spec);
+      return prepareScatter(kept, dataset, spec, meta);
     default: {
       const unreachable: never = spec;
       throw new Error(`Unknown chart type: ${JSON.stringify(unreachable)}`);
@@ -105,7 +107,7 @@ function compare(a: XValue, b: XValue): number {
   return sa < sb ? -1 : sa > sb ? 1 : 0;
 }
 
-function prepareCartesian(rows: Row[], dataset: DatasetSummary, spec: CartesianSpec): CartesianData {
+function prepareCartesian(rows: Row[], dataset: DatasetSummary, spec: CartesianSpec, meta: LabelMeta): CartesianData {
   const xColumn = findColumn(dataset, spec.x.field);
   const seriesColumn = spec.series ? findColumn(dataset, spec.series.field) : undefined;
 
@@ -128,7 +130,7 @@ function prepareCartesian(rows: Row[], dataset: DatasetSummary, spec: CartesianS
     bucket.push(row);
   }
 
-  const yLabel = aggregateLabel(spec.y);
+  const yLabel = aggregateLabel(spec.y, meta);
   let xValues = naturalOrder([...groups.keys()], xColumn);
   const keys = seriesColumn ? naturalOrder([...seriesSeen], seriesColumn) : [null];
   let series: SeriesData[] = keys.map((key) => ({
@@ -159,15 +161,15 @@ function prepareCartesian(rows: Row[], dataset: DatasetSummary, spec: CartesianS
 
   return {
     type: spec.type,
-    x: { field: xColumn.name, label: spec.x.label ?? xColumn.name, kind: xColumn.kind, values: xValues },
+    x: { field: xColumn.name, label: spec.x.label ?? columnLabel(xColumn.name, meta), kind: xColumn.kind, values: xValues },
     y: { label: yLabel },
-    ...(seriesColumn && { seriesLabel: seriesColumn.name }),
+    ...(seriesColumn && { seriesLabel: columnLabel(seriesColumn.name, meta) }),
     series,
     annotations: spec.annotations ?? [],
   };
 }
 
-function prepareScatter(rows: Row[], dataset: DatasetSummary, spec: ScatterSpec): ScatterData {
+function prepareScatter(rows: Row[], dataset: DatasetSummary, spec: ScatterSpec, meta: LabelMeta): ScatterData {
   const groupColumn = spec.group ? findColumn(dataset, spec.group.field) : undefined;
   const points = new Map<XValue | null, ScatterPoint[]>();
   const add = (key: XValue | null, point: ScatterPoint) => {
@@ -189,7 +191,7 @@ function prepareScatter(rows: Row[], dataset: DatasetSummary, spec: ScatterSpec)
     }
   } else {
     const perColumn = findColumn(dataset, spec.per.field);
-    per = { field: perColumn.name, label: perColumn.name, kind: perColumn.kind };
+    per = { field: perColumn.name, label: columnLabel(perColumn.name, meta), kind: perColumn.kind };
     const buckets = new Map<XValue, Map<XValue | null, Row[]>>();
     for (const row of rows) {
       const [value, key] = [row[perColumn.name] ?? null, groupOf(row)];
@@ -213,10 +215,10 @@ function prepareScatter(rows: Row[], dataset: DatasetSummary, spec: ScatterSpec)
   const keys = groupColumn ? naturalOrder(present, groupColumn) : [null];
   return {
     type: "scatter",
-    x: { label: aggregateLabel(spec.x) },
-    y: { label: aggregateLabel(spec.y) },
+    x: { label: aggregateLabel(spec.x, meta) },
+    y: { label: aggregateLabel(spec.y, meta) },
     ...(per && { per }),
-    ...(groupColumn && { groupLabel: groupColumn.name }),
+    ...(groupColumn && { groupLabel: columnLabel(groupColumn.name, meta) }),
     groups: keys.map((key) => ({ key, label: key === null ? "All" : String(key), points: points.get(key) ?? [] })),
   };
 }
@@ -267,13 +269,21 @@ function aggregate(rows: Row[], { aggregate, field }: AggregateOf): number | nul
   }
 }
 
-// "Count", or e.g. "Sum of scoops", unless the spec gives a label.
-function aggregateLabel({ aggregate, field, label }: AggregateOf & { label?: string }): string {
+// The spec's label, else the row label or "Count" for counts, the column
+// label for a raw scatter field, or e.g. "Sum of revenue (£)" (D-025).
+function aggregateLabel({ aggregate, field, label }: AggregateOf & { label?: string }, meta: LabelMeta): string {
   if (label !== undefined) return label;
-  if (aggregate === "count") return "Count";
-  const name = field ?? "";
+  if (aggregate === "count") return meta.rowLabel ?? "Count";
+  const name = columnLabel(field ?? "", meta);
   if (aggregate === undefined) return name;
-  return `${aggregate.charAt(0).toUpperCase()}${aggregate.slice(1)} of ${name}`;
+  return `${aggregate.charAt(0).toUpperCase()}${aggregate.slice(1)} of ${lowerFirst(name)}`;
+}
+
+// "Revenue (£)" → "revenue (£)", but acronyms such as "GDP per capita" stay.
+function lowerFirst(label: string): string {
+  const [first = "", second = ""] = label;
+  const acronym = /[A-Z]/.test(first) && /[A-Z]/.test(second);
+  return acronym ? label : first.toLowerCase() + label.slice(1);
 }
 
 function axisField(axis: ScatterAxis): string {

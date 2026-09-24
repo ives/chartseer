@@ -3,18 +3,19 @@ import { describe, expect, it } from "vitest";
 import { type ChartSpec, type Filter, bikesSummary, examples } from "@/lib/spec";
 import { datasets } from "./datasets";
 import { inferDataset } from "./infer";
+import type { LabelMeta } from "./labels";
 import { parseCsv } from "./parse";
 import { type CartesianData, type ChartData, type ScatterData, prepareChartData } from "./prepare";
 
 const base = { version: 1, title: "t" } as const;
 
-function prepare(csv: string, spec: ChartSpec): ChartData {
+function prepare(csv: string, spec: ChartSpec, meta?: LabelMeta): ChartData {
   const { summary, rows } = inferDataset(parseCsv(csv));
-  return prepareChartData(rows, summary, spec);
+  return prepareChartData(rows, summary, spec, meta);
 }
 
-function cartesian(csv: string, spec: ChartSpec): CartesianData {
-  const data = prepare(csv, spec);
+function cartesian(csv: string, spec: ChartSpec, meta?: LabelMeta): CartesianData {
+  const data = prepare(csv, spec, meta);
   if (data.type === "scatter") throw new Error("expected cartesian data");
   return data;
 }
@@ -155,10 +156,10 @@ describe("sort and limit", () => {
 describe("shape", () => {
   const csv = "date,shop,scoops\n2025-01-02,A,5\n2025-01-01,A,2\n2025-01-01,B,4\n";
 
-  it("defaults labels and gives a single series without a series column", () => {
+  it("derives labels from column names and gives a single series without a series column", () => {
     expect(prepare(csv, { ...base, type: "line", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" } })).toEqual({
       type: "line",
-      x: { field: "date", label: "date", kind: "date", values: ["2025-01-01", "2025-01-02"] },
+      x: { field: "date", label: "Date", kind: "date", values: ["2025-01-01", "2025-01-02"] },
       y: { label: "Sum of scoops" },
       series: [{ key: null, label: "Sum of scoops", values: [6, 5] }],
       annotations: [],
@@ -180,13 +181,54 @@ describe("shape", () => {
       type: "area",
       x: { field: "date", label: "Day", kind: "date", values: ["2025-01-01", "2025-01-02"] },
       y: { label: "Sales" },
-      seriesLabel: "shop",
+      seriesLabel: "Shop",
       series: [
         { key: "A", label: "A", values: [1, 1] },
         { key: "B", label: "B", values: [1, null] },
       ],
       annotations,
     });
+  });
+
+  const meta: LabelMeta = {
+    columnLabels: { date: "Day of sale", shop: "Gelateria", scoops: "Scoops sold" },
+    rowLabel: "Sales",
+  };
+
+  it("takes axis and legend titles from the dataset's labels", () => {
+    const data = cartesian(
+      csv,
+      { ...base, type: "bar", x: { field: "date" }, y: { field: "scoops", aggregate: "mean" }, series: { field: "shop" } },
+      meta,
+    );
+    expect(data.x.label).toBe("Day of sale");
+    expect(data.y.label).toBe("Mean of scoops sold");
+    expect(data.seriesLabel).toBe("Gelateria");
+  });
+
+  it("titles counts with the row label, else Count", () => {
+    const count = { ...base, type: "line", x: { field: "date" }, y: { aggregate: "count" } } as const;
+    expect(cartesian(csv, count, meta).y.label).toBe("Sales");
+    expect(cartesian(csv, count, meta).series[0]?.label).toBe("Sales");
+    expect(cartesian(csv, count).y.label).toBe("Count");
+  });
+
+  it("keeps acronyms capitalised after the aggregate", () => {
+    const data = cartesian(
+      csv,
+      { ...base, type: "line", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" } },
+      { columnLabels: { scoops: "GBP taken" } },
+    );
+    expect(data.y.label).toBe("Sum of GBP taken");
+  });
+
+  it("prefers the spec's labels to the dataset's", () => {
+    const data = cartesian(
+      csv,
+      { ...base, type: "line", x: { field: "date", label: "When" }, y: { aggregate: "count", label: "Orders" } },
+      meta,
+    );
+    expect([data.x.label, data.y.label]).toEqual(["When", "Orders"]);
   });
 });
 
@@ -204,8 +246,8 @@ describe("scatter", () => {
   it("draws one point per row, skipping rows with an empty axis", () => {
     expect(scatter(csv, spec)).toEqual({
       type: "scatter",
-      x: { label: "temp" },
-      y: { label: "scoops" },
+      x: { label: "Temp" },
+      y: { label: "Scoops" },
       groups: [
         {
           key: null,
@@ -233,7 +275,7 @@ describe("scatter", () => {
       type: "scatter",
       x: { label: "Mean of temp" },
       y: { label: "Sum of scoops" },
-      per: { field: "day", label: "day", kind: "date" },
+      per: { field: "day", label: "Day", kind: "date" },
       groups: [
         {
           key: null,
@@ -249,7 +291,7 @@ describe("scatter", () => {
 
   it("groups by per and group together", () => {
     const data = scatter(csv, { ...perDay, group: { field: "shop" } });
-    expect(data.groupLabel).toBe("shop");
+    expect(data.groupLabel).toBe("Shop");
     expect(data.groups).toEqual([
       { key: "A", label: "A", points: [{ x: 8, y: 2, per: "2025-01-01" }, { x: 10, y: 5, per: "2025-01-02" }] },
       { key: "B", label: "B", points: [{ x: 8, y: 4, per: "2025-01-01" }, { x: 10, y: 6, per: "2025-01-02" }] },

@@ -49,7 +49,7 @@ export function Gallery() {
             <section key={example.id} className="flex flex-col gap-3">
               <p className="font-mono text-xs opacity-60">{example.id}</p>
               {result.ok ? (
-                <Chart spec={result.spec} data={prepareChartData(inferred.rows, inferred.summary, result.spec)} dataset={meta} />
+                <Chart spec={result.spec} data={prepareChartData(inferred.rows, inferred.summary, result.spec, meta)} dataset={meta} />
               ) : (
                 <ul className="list-disc pl-5 text-sm text-red-600">
                   {result.errors.map((e) => (

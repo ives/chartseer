@@ -138,7 +138,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - Rows with a null x, series, group or `per` value are dropped.
 - Order: bar `sort` orders by value (by total with a series), stably, with empty totals last. Otherwise categories follow the column's value list, and numbers and dates ascend. `limit` applies after sorting.
 - x values are only those present after filtering. Dates are not gap-filled, so Christmas Day, when every gelato shop is shut, is simply absent.
-- Axis and series labels are resolved here: the spec's label, else the column name, else "Count" or "Sum of scoops" and so on.
+- Axis and series labels are resolved here: the spec's label, else the column name, else "Count" or "Sum of scoops" and so on. *(Refined by D-025.)*
 **Consequences:** Renderers never aggregate or reorder. Missing combinations stay visible (Earl Grey before launch, Brixton's refit). A line across a day with no rows at all joins its neighbours; if that misleads, gap-filling needs a known date granularity and belongs here, not in the renderer.
 
 ## D-022 · 2026-09-24 · Chart rendering
@@ -165,3 +165,9 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 **Context:** The schema allows up to 12 series, and colours must come from CSS so dark mode needs no JavaScript (D-008).
 **Decision:** `--chart-1` … `--chart-12` in `app/globals.css`, assigned in series order. Slots 1–8 are a validated categorical palette with separate light and dark steps; slots 9–12 (teal, brown, plum, olive) extend it, using the same values in both modes. The whole set passes lightness, chroma, adjacent-pair colour-blind separation and normal-vision checks against the app's actual backgrounds (`#ffffff`, `#0a0a0a`). In light mode three slots (aqua, yellow, pink) sit below 3:1 contrast with the background.
 **Consequences:** Colour is never the only identity channel: the legend always names each series, and the table view (§10) will carry the values. Past about eight series, neighbouring colours are distinguishable but not easily.
+
+## D-025 · 2026-09-24 · Column labels
+
+**Context:** Without a spec label, axis and legend titles fell back to raw column names (`day_type`, `Sum of revenue_gbp`), and a count of bike hires was titled "Count".
+**Decision:** Display labels live in `DatasetMeta` (`lib/data/labels.ts` defines `LabelMeta`): `columnLabels` maps a column name to its label, and `rowLabel` says what one row is (bikes: "Journeys"; gelato has none, as a row is a shop, flavour and day). Every bundled column has a label, and a test checks the labels against each CSV's header. `prepareChartData` takes the meta as an optional fourth argument. Titles use the spec's label first, then the column's label. A column with no label, as in an uploaded file, gets one derived from its name: underscores become spaces and the first letter is capitalised, with the rest untouched so acronyms survive (`GDP_per_capita` → "GDP per capita"). A count is titled with the spec's label, else `rowLabel`, else "Count". Other aggregates keep their prefix, "Sum of revenue (£)", with the label's first letter lower-cased unless it begins with an acronym. The prefix stays because the label alone would hide whether a value is a sum or a mean.
+**Consequences:** Labels are for display only. The model still sees column names in the dataset summary and writes them in specs, so nothing in `lib/spec` changes. Renaming or adding a bundled column now means adding its label too, or the test fails.
