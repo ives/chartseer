@@ -12,6 +12,7 @@
     "try-spec": "tsx scripts/try-spec.ts"
   },
   "dependencies": {
+    "d3-dsv": "^3.0.1",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/d3-dsv": "^3.0.7",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

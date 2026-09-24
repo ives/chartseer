@@ -191,3 +191,4 @@ All errors are collected, not just the first. A check that needs a missing colum
 - Is one validation retry enough, or does the prompt-check script suggest two?
 - **Tool schema size.** `RenderChartInput`'s JSON Schema is about 17 KB minified (snapshot in `lib/spec/__snapshots__/`), sent with every request. Check its token cost in M3 alongside prompt caching and the prompt-check script, before trimming any descriptions.
 - **Attribution and sampling are the app's job.** The TfL attribution and the bike sample ratio (1 in 30.8) must be shown by the app wherever the bikes dataset appears, not left to the model's subtitles, which it may omit or get wrong.
+- **Locale formats in uploads.** Column inference doesn't yet recognise UK-style dates (`24/09/2026`) or numbers with thousands separators (`1,234`); they come through as categories (D-019). Decide in M4, when uploads arrive.
