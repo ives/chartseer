@@ -166,7 +166,7 @@ Both return plain, specific error messages, written for the model to act on (e.g
 
 ## 13. Milestones
 
-- [ ] **M0 — Foundations:** scaffold, add `typecheck` and `test` scripts, deploy the empty app to Vercel, commit these docs.
+- [x] **M0 — Foundations:** scaffold, add `typecheck` and `test` scripts, deploy the empty app to Vercel, commit these docs.
 - [ ] **M1 — The contract:** `ChartSpec` schema, semantic validation, 4–6 hand-written example specs, tests.
 - [ ] **M2 — Rendering without AI:** CSV parsing, column inference, `prepareChartData`, chart frame, four renderers, gallery page.
 - [ ] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
