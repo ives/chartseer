@@ -140,3 +140,28 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - x values are only those present after filtering. Dates are not gap-filled, so Christmas Day, when every gelato shop is shut, is simply absent.
 - Axis and series labels are resolved here: the spec's label, else the column name, else "Count" or "Sum of scoops" and so on.
 **Consequences:** Renderers never aggregate or reorder. Missing combinations stay visible (Earl Grey before launch, Brixton's refit). A line across a day with no rows at all joins its neighbours; if that misleads, gap-filling needs a known date granularity and belongs here, not in the renderer.
+
+## D-022 · 2026-09-24 · Chart rendering
+
+**Context:** The first renderers (line and bar) and the shared chart frame had to settle how React and D3 split the work, and a few layout questions every later renderer inherits.
+**Decision:**
+- **React draws the axes too.** Ticks come from `scale.ticks()` and `scale.tickFormat()`; there is no `d3-axis` or `d3-selection`, so no `d3.select` anywhere. The only D3 packages are `d3-scale` and `d3-shape`.
+- **The frame takes scales as a function of the plot size.** Scales need the inner width, which needs the measured width and the left margin. `ChartFrame` calls the renderer's `axes(inner)` and passes the result to its `children`, so layout is one pass with no state beyond the `ResizeObserver` width.
+- **The left margin is estimated**, from the longest y tick label at about 7px a character, capped at 40% of the width; longer labels are truncated with an ellipsis and a `<title>`. No DOM measurement, so the frame renders the same in tests.
+- **Dates sit on a UTC axis.** `isoToUtcDate` reads zone-less date-times as UTC, as JavaScript already does for date-only strings, so a chart looks the same in every time zone.
+- **The value axis always includes zero**, and gridlines are drawn only on it. Stacked bars use the diverging offset, so negative values stack below the baseline.
+- **Annotations off the axis are skipped**, not errors: a category removed by a filter or `limit`, or a date outside the plotted range. Ranges on a time axis are clamped to it.
+- **Area and scatter show a placeholder** with the title and attribution until their renderers exist.
+**Consequences:** Renderers stay declarative and testable in jsdom. Estimated label widths can be off for very wide or narrow glyphs; revisit only if real labels collide. A bar or stacked segment thinner than the 2px gap disappears.
+
+## D-023 · 2026-09-24 · Component tests
+
+**Context:** D-012 deferred jsdom and React Testing Library until the first chart components.
+**Decision:** Add `jsdom`, `@testing-library/react` and `@testing-library/dom`. Component tests opt in with a `// @vitest-environment jsdom` comment and call `cleanup` themselves; `lib/` tests stay in the `node` environment. `@vitejs/plugin-react` is not needed: Vitest's own transform handles JSX with the tsconfig's `react-jsx`. Tests stub `ResizeObserver`, which jsdom lacks.
+**Consequences:** Three dev dependencies instead of the guide's five. Tests check structure and accessible text, never pixels; visual checks happen on `/dev/gallery`.
+
+## D-024 · 2026-09-24 · Series palette
+
+**Context:** The schema allows up to 12 series, and colours must come from CSS so dark mode needs no JavaScript (D-008).
+**Decision:** `--chart-1` … `--chart-12` in `app/globals.css`, assigned in series order. Slots 1–8 are a validated categorical palette with separate light and dark steps; slots 9–12 (teal, brown, plum, olive) extend it, using the same values in both modes. The whole set passes lightness, chroma, adjacent-pair colour-blind separation and normal-vision checks against the app's actual backgrounds (`#ffffff`, `#0a0a0a`). In light mode three slots (aqua, yellow, pink) sit below 3:1 contrast with the background.
+**Consequences:** Colour is never the only identity channel: the legend always names each series, and the table view (§10) will carry the values. Past about eight series, neighbouring colours are distinguishable but not easily.

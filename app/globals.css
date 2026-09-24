@@ -3,6 +3,28 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Chart series, assigned in order (D-024). Slots 1–8 are a validated
+     categorical palette; 9–12 extend it and pass the same checks. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #4a3aa7;
+  --chart-8: #e34948;
+  --chart-9: #0090a8;
+  --chart-10: #a8601e;
+  --chart-11: #b0379a;
+  --chart-12: #7f9500;
+
+  /* Chart chrome: recessive, one step off the surface. */
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #6b6a65;
+  --chart-annotation: rgba(11, 11, 11, 0.06);
+  --chart-annotation-line: #898781;
 }
 
 @theme inline {
@@ -16,6 +38,25 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
+    --chart-6: #008300;
+    --chart-7: #9085e9;
+    --chart-8: #e66767;
+    --chart-9: #0090a8;
+    --chart-10: #a8601e;
+    --chart-11: #b0379a;
+    --chart-12: #7f9500;
+
+    --chart-grid: #2c2c2a;
+    --chart-axis: #383835;
+    --chart-muted: #a3a29b;
+    --chart-annotation: rgba(255, 255, 255, 0.08);
+    --chart-annotation-line: #898781;
   }
 }
 
