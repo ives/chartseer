@@ -1,0 +1,17 @@
+{
+  "dataset": "gelato",
+  "spec": {
+    "version": 1,
+    "type": "line",
+    "title": "Daily revenue by shop, 2025",
+    "subtitle": "Prices rose from £3.60 to £3.95 a scoop on 1 April",
+    "x": { "field": "date" },
+    "y": { "field": "revenue_gbp", "aggregate": "sum", "label": "Revenue (£)" },
+    "series": { "field": "shop" },
+    "filters": [
+      { "field": "date", "op": "gte", "value": "2025-01-01" },
+      { "field": "date", "op": "lte", "value": "2025-12-31" }
+    ],
+    "annotations": [{ "kind": "point", "x": "2025-04-01", "label": "Price rise" }]
+  }
+}

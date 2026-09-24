@@ -40,6 +40,7 @@ pnpm build        # production build
 pnpm test         # vitest run
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # eslint
+pnpm try-spec <f> # run parseSpec on a { dataset, spec } JSON file (samples in scripts/specs/)
 ```
 
 ## Conventions

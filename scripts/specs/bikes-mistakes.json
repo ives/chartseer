@@ -1,0 +1,14 @@
+{
+  "dataset": "bikes",
+  "spec": {
+    "version": 1,
+    "type": "bar",
+    "title": "E-bike hires by start area",
+    "x": { "field": "start_areas", "label": "Start area" },
+    "y": { "field": "start_station", "aggregate": "sum", "label": "Journeys" },
+    "orientation": "horizontal",
+    "sort": "desc",
+    "limit": 15,
+    "filters": [{ "field": "bike_type", "op": "eq", "value": "Ebike" }]
+  }
+}
