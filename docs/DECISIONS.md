@@ -92,3 +92,15 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - **Dates are ISO 8601 strings** in filters and annotations.
 - **Bars take an optional `limit`** (1–50): keep the top N categories after sorting. It makes high-cardinality columns such as `start_area` (126 values) chartable.
 **Consequences:** Semantic validation (next) checks what Zod can't: that dates really are ISO dates, that fields exist and have the right kind.
+
+## D-015 · 2026-09-24 · Category columns carry their full value list
+
+**Context:** Semantic validation has to catch a misspelt filter value such as "Amalfi Lemno", and the model can only spell values it has seen. Five examples cover some columns completely (`shop`) and others only partly (`flavour` has 7 values).
+**Decision:** A category column with 50 or fewer distinct values carries every value in `values`; above that it carries up to 5 `examples`, never both. 50 matches the most categories a bar chart can show, so a column has a full list exactly when it can be charted without `limit`. Values are in natural order: calendar order for weekdays, months and seasons, otherwise first appearance in the file. First appearance alone isn't enough — the bikes file starts on a Friday, so its weekdays would read Fri … Thu.
+**Consequences:** Filter and annotation values on these columns are checked exactly, with a nearest-match suggestion, and the model sees the order the chart will use. The summary sent to the model grows by at most 50 short strings per column. Column inference (M2) has to implement the ordering rule; the fixtures follow it by hand until then.
+
+## D-016 · 2026-09-24 · Demo datasets
+
+**Context:** ARCHITECTURE §14 asked for two bundled datasets: one real and time-based, one more playful.
+**Decision:** TfL Santander Cycles journeys (real, sampled to about 25,000 hires at 1 in 30.8) and Gelateria Nebbia (an invented five-shop gelato chain with planted stories). Sources, licences, columns and rebuild steps are in `docs/DATA.md`.
+**Consequences:** The bikes data needs TfL's attribution wherever it is shown, and its counts are a sample, not TfL totals — the app must show both rather than relying on the model (§14). Gelato numbers are fictional, and the demo should say so. Both files are rebuilt by seeded scripts in `scripts/`.

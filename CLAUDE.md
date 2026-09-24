@@ -5,7 +5,7 @@ A conversational data-visualisation studio. The user loads a CSV and describes a
 @AGENTS.md
 
 Read `docs/ARCHITECTURE.md` before changing anything in `lib/spec/` or `lib/ai/`.
-Log any choice a future reader would ask "why?" about in `DECISIONS.md`.
+Log any choice a future reader would ask "why?" about in `docs/DECISIONS.md`.
 
 ## Non-negotiables
 

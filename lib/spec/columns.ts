@@ -22,11 +22,36 @@ const DateColumn = z.strictObject({
   examples: z.array(z.string()).max(5).describe("Up to 5 example values, ISO 8601"),
 });
 
-const CategoryColumn = z.strictObject({
-  ...columnBase,
-  kind: z.literal("category"),
-  examples: z.array(z.string()).max(5).describe("Up to 5 example values"),
-});
+// A category column with this many distinct values or fewer lists them all.
+// It matches the most categories a bar chart can show.
+export const MAX_LISTED_VALUES = 50;
+
+const CategoryColumn = z
+  .strictObject({
+    ...columnBase,
+    kind: z.literal("category"),
+    values: z
+      .array(z.string())
+      .max(MAX_LISTED_VALUES)
+      .optional()
+      .describe(
+        `Every distinct value, in natural order. Present when there are ${MAX_LISTED_VALUES} or fewer; filter and annotation values must be one of these, spelt exactly.`,
+      ),
+    examples: z
+      .array(z.string())
+      .max(5)
+      .optional()
+      .describe(`Up to 5 example values. Present instead of values when there are more than ${MAX_LISTED_VALUES}.`),
+  })
+  .refine(
+    (c) =>
+      c.distinct <= MAX_LISTED_VALUES
+        ? c.values?.length === c.distinct && c.examples === undefined
+        : c.values === undefined && c.examples !== undefined,
+    {
+      message: `A category column lists all its values when it has ${MAX_LISTED_VALUES} or fewer, and up to 5 examples otherwise`,
+    },
+  );
 
 const TextColumn = z.strictObject({
   ...columnBase,

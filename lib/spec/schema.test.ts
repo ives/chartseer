@@ -31,6 +31,15 @@ describe("fixtures", () => {
   ])("%s parses", (_name, summary) => {
     expect(DatasetSummary.safeParse(summary).error).toBeUndefined();
   });
+
+  it.each([
+    ["both values and examples", { values: ["a", "b"], examples: ["a"] }],
+    ["examples when it has 50 or fewer values", { examples: ["a"] }],
+    ["values that don't match the distinct count", { values: ["a"] }],
+  ])("rejects a category column with %s", (_name, list) => {
+    const column = { name: "c", kind: "category", distinct: 2, nulls: 0, ...list };
+    expect(DatasetSummary.safeParse({ ...gelatoSummary, columns: [column] }).success).toBe(false);
+  });
 });
 
 describe("ChartSpec rejects", () => {
@@ -50,5 +59,12 @@ describe("ChartSpec rejects", () => {
 describe("RenderChartInput", () => {
   it("has an object at the root of its JSON Schema, as tool inputs require", () => {
     expect(z.toJSONSchema(RenderChartInput)).toMatchObject({ type: "object", required: ["spec"] });
+  });
+
+  // The model's documentation for the tool. Any schema change shows up in this file's diff.
+  it("matches the JSON Schema snapshot", async () => {
+    await expect(JSON.stringify(z.toJSONSchema(RenderChartInput), null, 2) + "\n").toMatchFileSnapshot(
+      "./__snapshots__/render-chart-input.schema.json",
+    );
   });
 });

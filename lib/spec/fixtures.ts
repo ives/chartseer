@@ -2,6 +2,8 @@ import type { DatasetSummary } from "./columns";
 
 // Hand-written summaries of the demo datasets in public/data/, with figures
 // taken from the files themselves. See docs/DATA.md for what each column means.
+// Category values are in natural order (D-015): calendar order for weekdays and
+// seasons, otherwise the order they first appear in the file.
 
 export const bikesSummary = {
   rowCount: 25262,
@@ -24,10 +26,16 @@ export const bikesSummary = {
       max: "2026-05-31",
       examples: ["2026-01-16", "2026-01-17", "2026-01-18", "2026-01-19", "2026-01-20"],
     },
-    { name: "weekday", kind: "category", distinct: 7, nulls: 0, examples: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-    { name: "day_type", kind: "category", distinct: 2, nulls: 0, examples: ["Weekday", "Weekend"] },
+    {
+      name: "weekday",
+      kind: "category",
+      distinct: 7,
+      nulls: 0,
+      values: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    },
+    { name: "day_type", kind: "category", distinct: 2, nulls: 0, values: ["Weekday", "Weekend"] },
     { name: "hour", kind: "number", distinct: 24, nulls: 0, min: 0, max: 23, examples: [0, 1, 2, 3, 4] },
-    { name: "season", kind: "category", distinct: 2, nulls: 0, examples: ["Winter", "Spring"] },
+    { name: "season", kind: "category", distinct: 2, nulls: 0, values: ["Winter", "Spring"] },
     {
       name: "start_station",
       kind: "category",
@@ -104,7 +112,7 @@ export const bikesSummary = {
       max: 0.005,
       examples: [-0.2078, -0.2135, -0.1228, -0.1747, -0.1257],
     },
-    { name: "round_trip", kind: "category", distinct: 2, nulls: 0, examples: ["No", "Yes"] },
+    { name: "round_trip", kind: "category", distinct: 2, nulls: 0, values: ["No", "Yes"] },
     {
       name: "duration_min",
       kind: "number",
@@ -114,7 +122,7 @@ export const bikesSummary = {
       max: 1365.5,
       examples: [40.1, 26.2, 6.5, 6, 9],
     },
-    { name: "bike_type", kind: "category", distinct: 2, nulls: 0, examples: ["E-bike", "Classic"] },
+    { name: "bike_type", kind: "category", distinct: 2, nulls: 0, values: ["E-bike", "Classic"] },
   ],
   sampleRows: [
     {
@@ -189,22 +197,36 @@ export const gelatoSummary = {
       max: "2025-12-31",
       examples: ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"],
     },
-    { name: "weekday", kind: "category", distinct: 7, nulls: 0, examples: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
+    {
+      name: "weekday",
+      kind: "category",
+      distinct: 7,
+      nulls: 0,
+      values: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    },
     {
       name: "shop",
       kind: "category",
       distinct: 5,
       nulls: 0,
-      examples: ["Covent Garden", "Hampstead Heath", "Canary Wharf", "Brixton", "Richmond Riverside"],
+      values: ["Covent Garden", "Hampstead Heath", "Canary Wharf", "Brixton", "Richmond Riverside"],
     },
     {
       name: "flavour",
       kind: "category",
       distinct: 7,
       nulls: 0,
-      examples: ["Pistachio", "Stracciatella", "Dark Chocolate", "Salted Caramel", "Amalfi Lemon"],
+      values: [
+        "Pistachio",
+        "Stracciatella",
+        "Dark Chocolate",
+        "Salted Caramel",
+        "Amalfi Lemon",
+        "Alphonso Mango",
+        "Earl Grey",
+      ],
     },
-    { name: "flavour_type", kind: "category", distinct: 2, nulls: 0, examples: ["Gelato", "Sorbet"] },
+    { name: "flavour_type", kind: "category", distinct: 2, nulls: 0, values: ["Gelato", "Sorbet"] },
     { name: "scoops", kind: "number", distinct: 274, nulls: 0, min: 1, max: 327, examples: [70, 69, 75, 61, 33] },
     {
       name: "revenue_gbp",
@@ -225,9 +247,9 @@ export const gelatoSummary = {
       examples: [7.4, 6.8, 6.6, 8.3, 11.7],
     },
     { name: "rain_mm", kind: "number", distinct: 107, nulls: 0, min: 0, max: 34.3, examples: [0, 1.4, 2.2, 3.4, 0.6] },
-    { name: "weather", kind: "category", distinct: 3, nulls: 0, examples: ["Cloudy", "Rain", "Sunny"] },
-    { name: "school_holiday", kind: "category", distinct: 2, nulls: 0, examples: ["Yes", "No"] },
-    { name: "bank_holiday", kind: "category", distinct: 2, nulls: 0, examples: ["Yes", "No"] },
+    { name: "weather", kind: "category", distinct: 3, nulls: 0, values: ["Cloudy", "Rain", "Sunny"] },
+    { name: "school_holiday", kind: "category", distinct: 2, nulls: 0, values: ["Yes", "No"] },
+    { name: "bank_holiday", kind: "category", distinct: 2, nulls: 0, values: ["Yes", "No"] },
   ],
   sampleRows: [
     {

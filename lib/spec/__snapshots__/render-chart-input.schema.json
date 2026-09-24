@@ -1,0 +1,1022 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "spec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number",
+              "const": 1,
+              "description": "Always 1"
+            },
+            "title": {
+              "type": "string",
+              "description": "States what the chart shows, in plain words"
+            },
+            "subtitle": {
+              "description": "Extra context: units, date range, data caveats",
+              "type": "string"
+            },
+            "filters": {
+              "description": "Up to 5 row filters",
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "eq",
+                          "neq",
+                          "gt",
+                          "gte",
+                          "lt",
+                          "lte"
+                        ],
+                        "description": "eq =, neq ≠, gt >, gte ≥, lt <, lte ≤"
+                      },
+                      "value": {
+                        "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "value"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows where the field compares true against a single value"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "const": "in"
+                      },
+                      "values": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        },
+                        "description": "Keep rows whose value is any of these"
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "values"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows whose value is in a list"
+                  }
+                ],
+                "description": "Applied before aggregation. All filters must hold for a row to be kept."
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "line"
+            },
+            "x": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact column name from the dataset summary"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Axis title to show instead of the column name"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "The x axis. Its scale follows the column kind: dates become a time axis, numbers a linear axis, categories evenly spaced."
+            },
+            "y": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "aggregate": {
+                      "type": "string",
+                      "const": "count",
+                      "description": "Count the rows"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Axis title to show instead of the column name"
+                    }
+                  },
+                  "required": [
+                    "aggregate"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Number of rows for each x (and series) value. Takes no field."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "description": "Exact name of a numeric column from the dataset summary"
+                    },
+                    "aggregate": {
+                      "type": "string",
+                      "enum": [
+                        "sum",
+                        "mean",
+                        "median",
+                        "min",
+                        "max"
+                      ],
+                      "description": "How to combine rows that share the same x (and series) value"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Axis title to show instead of the column name"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "aggregate"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A numeric column, combined across rows that share the same x (and series) value"
+                }
+              ],
+              "description": "The value axis. Use aggregate \"count\" to count rows; otherwise name a numeric field."
+            },
+            "series": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact name of a category column; at most 12 distinct values"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "Split into one line, area or bar group per value of this column"
+            },
+            "annotations": {
+              "description": "Up to 5 notes on the chart",
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "point"
+                      },
+                      "x": {
+                        "description": "Position on the x axis, in the x column's own values",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Short note, a few words"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "x",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Marks a single x position"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "range"
+                      },
+                      "from": {
+                        "description": "Start of the range on the x axis, in the x column's own values",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "to": {
+                        "description": "End of the range, inclusive",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Short note, a few words"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "from",
+                      "to",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Shades a span of the x axis"
+                  }
+                ],
+                "description": "A note that draws attention to part of the chart"
+              }
+            }
+          },
+          "required": [
+            "version",
+            "title",
+            "type",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false,
+          "description": "Line chart: a trend over an ordered x, usually a date or number"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number",
+              "const": 1,
+              "description": "Always 1"
+            },
+            "title": {
+              "type": "string",
+              "description": "States what the chart shows, in plain words"
+            },
+            "subtitle": {
+              "description": "Extra context: units, date range, data caveats",
+              "type": "string"
+            },
+            "filters": {
+              "description": "Up to 5 row filters",
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "eq",
+                          "neq",
+                          "gt",
+                          "gte",
+                          "lt",
+                          "lte"
+                        ],
+                        "description": "eq =, neq ≠, gt >, gte ≥, lt <, lte ≤"
+                      },
+                      "value": {
+                        "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "value"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows where the field compares true against a single value"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "const": "in"
+                      },
+                      "values": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        },
+                        "description": "Keep rows whose value is any of these"
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "values"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows whose value is in a list"
+                  }
+                ],
+                "description": "Applied before aggregation. All filters must hold for a row to be kept."
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "area"
+            },
+            "x": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact column name from the dataset summary"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Axis title to show instead of the column name"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "The x axis. Its scale follows the column kind: dates become a time axis, numbers a linear axis, categories evenly spaced."
+            },
+            "y": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "aggregate": {
+                      "type": "string",
+                      "const": "count",
+                      "description": "Count the rows"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Axis title to show instead of the column name"
+                    }
+                  },
+                  "required": [
+                    "aggregate"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Number of rows for each x (and series) value. Takes no field."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "description": "Exact name of a numeric column from the dataset summary"
+                    },
+                    "aggregate": {
+                      "type": "string",
+                      "enum": [
+                        "sum",
+                        "mean",
+                        "median",
+                        "min",
+                        "max"
+                      ],
+                      "description": "How to combine rows that share the same x (and series) value"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Axis title to show instead of the column name"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "aggregate"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A numeric column, combined across rows that share the same x (and series) value"
+                }
+              ],
+              "description": "The value axis. Use aggregate \"count\" to count rows; otherwise name a numeric field."
+            },
+            "series": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact name of a category column; at most 12 distinct values"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "Split into one line, area or bar group per value of this column"
+            },
+            "stacked": {
+              "description": "Default false. Stack series to show their total and each one's share.",
+              "type": "boolean"
+            },
+            "annotations": {
+              "description": "Up to 5 notes on the chart",
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "point"
+                      },
+                      "x": {
+                        "description": "Position on the x axis, in the x column's own values",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Short note, a few words"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "x",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Marks a single x position"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "range"
+                      },
+                      "from": {
+                        "description": "Start of the range on the x axis, in the x column's own values",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "to": {
+                        "description": "End of the range, inclusive",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Short note, a few words"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "from",
+                      "to",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Shades a span of the x axis"
+                  }
+                ],
+                "description": "A note that draws attention to part of the chart"
+              }
+            }
+          },
+          "required": [
+            "version",
+            "title",
+            "type",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false,
+          "description": "Area chart: like a line chart, but the magnitude is filled in"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number",
+              "const": 1,
+              "description": "Always 1"
+            },
+            "title": {
+              "type": "string",
+              "description": "States what the chart shows, in plain words"
+            },
+            "subtitle": {
+              "description": "Extra context: units, date range, data caveats",
+              "type": "string"
+            },
+            "filters": {
+              "description": "Up to 5 row filters",
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "eq",
+                          "neq",
+                          "gt",
+                          "gte",
+                          "lt",
+                          "lte"
+                        ],
+                        "description": "eq =, neq ≠, gt >, gte ≥, lt <, lte ≤"
+                      },
+                      "value": {
+                        "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "value"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows where the field compares true against a single value"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "const": "in"
+                      },
+                      "values": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        },
+                        "description": "Keep rows whose value is any of these"
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "values"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows whose value is in a list"
+                  }
+                ],
+                "description": "Applied before aggregation. All filters must hold for a row to be kept."
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "bar"
+            },
+            "x": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact column name from the dataset summary"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Axis title to show instead of the column name"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "The category axis. Drawn vertically when orientation is horizontal."
+            },
+            "y": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "aggregate": {
+                      "type": "string",
+                      "const": "count",
+                      "description": "Count the rows"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Axis title to show instead of the column name"
+                    }
+                  },
+                  "required": [
+                    "aggregate"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Number of rows for each x (and series) value. Takes no field."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "description": "Exact name of a numeric column from the dataset summary"
+                    },
+                    "aggregate": {
+                      "type": "string",
+                      "enum": [
+                        "sum",
+                        "mean",
+                        "median",
+                        "min",
+                        "max"
+                      ],
+                      "description": "How to combine rows that share the same x (and series) value"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Axis title to show instead of the column name"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "aggregate"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A numeric column, combined across rows that share the same x (and series) value"
+                }
+              ],
+              "description": "The value axis. Use aggregate \"count\" to count rows; otherwise name a numeric field."
+            },
+            "series": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact name of a category column; at most 12 distinct values"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "Split into one line, area or bar group per value of this column"
+            },
+            "layout": {
+              "description": "How series share a category. Default grouped. Ignored without a series.",
+              "type": "string",
+              "enum": [
+                "grouped",
+                "stacked"
+              ]
+            },
+            "orientation": {
+              "description": "Default vertical. Use horizontal for many categories or long labels.",
+              "type": "string",
+              "enum": [
+                "vertical",
+                "horizontal"
+              ]
+            },
+            "sort": {
+              "description": "Order categories by their value (their total, if there is a series). Default none keeps the x column's natural order.",
+              "type": "string",
+              "enum": [
+                "none",
+                "asc",
+                "desc"
+              ]
+            },
+            "limit": {
+              "description": "Keep only the first N categories after sorting, e.g. the top 10 with sort desc",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "annotations": {
+              "description": "Up to 5 notes on the chart",
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "point"
+                      },
+                      "x": {
+                        "description": "Position on the x axis, in the x column's own values",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Short note, a few words"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "x",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Marks a single x position"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "range"
+                      },
+                      "from": {
+                        "description": "Start of the range on the x axis, in the x column's own values",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "to": {
+                        "description": "End of the range, inclusive",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Short note, a few words"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "from",
+                      "to",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Shades a span of the x axis"
+                  }
+                ],
+                "description": "A note that draws attention to part of the chart"
+              }
+            }
+          },
+          "required": [
+            "version",
+            "title",
+            "type",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false,
+          "description": "Bar chart: compares a value across categories"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number",
+              "const": 1,
+              "description": "Always 1"
+            },
+            "title": {
+              "type": "string",
+              "description": "States what the chart shows, in plain words"
+            },
+            "subtitle": {
+              "description": "Extra context: units, date range, data caveats",
+              "type": "string"
+            },
+            "filters": {
+              "description": "Up to 5 row filters",
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "eq",
+                          "neq",
+                          "gt",
+                          "gte",
+                          "lt",
+                          "lte"
+                        ],
+                        "description": "eq =, neq ≠, gt >, gte ≥, lt <, lte ≤"
+                      },
+                      "value": {
+                        "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "value"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows where the field compares true against a single value"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "description": "Exact column name from the dataset summary"
+                      },
+                      "op": {
+                        "type": "string",
+                        "const": "in"
+                      },
+                      "values": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "description": "A value from the column: a number, a category label, or an ISO 8601 date string such as \"2025-06-19\"",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        },
+                        "description": "Keep rows whose value is any of these"
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "op",
+                      "values"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep rows whose value is in a list"
+                  }
+                ],
+                "description": "Applied before aggregation. All filters must hold for a row to be kept."
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "scatter"
+            },
+            "x": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact name of a numeric column from the dataset summary"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Axis title to show instead of the column name"
+                },
+                "scale": {
+                  "description": "Default linear. Use log only when every value is above zero and they span several orders of magnitude.",
+                  "type": "string",
+                  "enum": [
+                    "linear",
+                    "log"
+                  ]
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "One row per point: values are plotted as they are, not aggregated"
+            },
+            "y": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact name of a numeric column from the dataset summary"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Axis title to show instead of the column name"
+                },
+                "scale": {
+                  "description": "Default linear. Use log only when every value is above zero and they span several orders of magnitude.",
+                  "type": "string",
+                  "enum": [
+                    "linear",
+                    "log"
+                  ]
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false,
+              "description": "One row per point: values are plotted as they are, not aggregated"
+            },
+            "group": {
+              "description": "Split points into groups by the values of this category column (at most 12)",
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Exact name of a category column; at most 12 distinct values"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "version",
+            "title",
+            "type",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false,
+          "description": "Scatter plot: one point per row, showing how two numeric columns relate"
+        }
+      ],
+      "description": "A complete chart. Describe what it means; the app decides how it looks."
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "additionalProperties": false
+}

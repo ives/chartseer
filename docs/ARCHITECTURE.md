@@ -114,21 +114,28 @@ export type ChartSpec = z.infer<typeof ChartSpec>;
 
 ## 6. Validation — two layers
 
-1. **Structural** (Zod): is this a well-formed spec?
-2. **Semantic** (`validateSpec(spec, columns)`): does it make sense for *this* dataset?
-   - every referenced field exists;
-   - measures are numeric, unless `aggregate` is `count`;
-   - scatter axes are numeric or dates;
-   - log scale only on strictly positive data;
-   - series have at most 12 distinct values; bar categories at most 50.
+`parseSpec(input, dataset)` in `lib/spec/parse.ts` is the single entry point. It takes the bare spec; the server unwraps the tool input's `spec`. It returns `{ ok: true, spec }` or `{ ok: false, errors }`.
 
-Both return plain, specific error messages, written for the model to act on (e.g. *"Column 'Revenue' not found. Available numeric columns: revenue_gbp, units."*).
+1. **Structural** (Zod): is this a well-formed spec? Each issue becomes `path: message`.
+2. **Semantic** (`validateSpec(spec, dataset)`, only on a well-formed spec): does it make sense for *this* dataset?
+   - every referenced field exists (x, y, series, group, filters);
+   - measures with a field are numeric (`count` takes no field);
+   - scatter axes are numeric, and a log scale needs the column's minimum above zero;
+   - bar charts show at most 50 categories unless `limit` is set;
+   - series and scatter groups have at most 12 values;
+   - an `eq` or `in` filter on the same column narrows its value count for the two checks above;
+   - filter values match the column's kind: numbers for number columns, ISO 8601 strings for date columns, strings for category and text columns;
+   - `gt`, `gte`, `lt` and `lte` only on number and date columns;
+   - annotation values (`x`, `from`, `to`) match the x column's kind in the same way;
+   - on a category column with a complete value list (§7), filter and annotation values must be in that list, with the nearest match suggested for a likely typo.
+
+All errors are collected, not just the first. A check that needs a missing column is skipped, so one bad name gives one error. Messages share the `path: message` form, say what's wrong and list the valid alternatives — e.g. *`filters[0].value: "Amalfi Lemno" is not a value of "flavour". Did you mean "Amalfi Lemon"? Values: …`*.
 
 ## 7. Data handling
 
 - CSV is parsed **in the browser** and kept in memory. No upload to a server, no storage.
 - File size limit: 5 MB.
-- Column inference produces a summary per column: `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, up to 5 example values.
+- Column inference produces a summary per column (`lib/spec/columns.ts`): `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, and up to 5 example values. A category column with 50 or fewer distinct values lists **all** of them instead, in natural order: calendar order for weekdays, months and seasons, otherwise the order of first appearance in the file (D-015).
 - The model receives the summary, the row count and at most 10 sample rows — never the full dataset.
 - `prepareChartData(rows, columns, spec)` is the one pure pipeline from raw rows to chart-ready data: **filter → aggregate → sort → shape**. Renderers never transform data themselves.
 
@@ -169,7 +176,7 @@ Both return plain, specific error messages, written for the model to act on (e.g
 ## 13. Milestones
 
 - [x] **M0 — Foundations:** scaffold, add `typecheck` and `test` scripts, deploy the empty app to Vercel, commit these docs.
-- [ ] **M1 — The contract:** `ChartSpec` schema, semantic validation, 4–6 hand-written example specs, tests.
+- [x] **M1 — The contract:** `ChartSpec` schema, semantic validation, 4–6 hand-written example specs, tests.
 - [ ] **M2 — Rendering without AI:** CSV parsing, column inference, `prepareChartData`, chart frame, four renderers, gallery page.
 - [ ] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
 - [ ] **M4 — Refinement and states:** follow-up edits, undo, CSV upload in the UI, error and empty states.
@@ -178,6 +185,8 @@ Both return plain, specific error messages, written for the model to act on (e.g
 
 ## 14. Open questions
 
-- Which two demo datasets? (One finance-shaped time series, one more playful.)
+- ~~Which two demo datasets?~~ Settled: TfL Santander Cycles and Gelateria Nebbia (D-016, `docs/DATA.md`).
 - Large scatter plots: cap and sample the points, or switch to canvas above a threshold?
 - Is one validation retry enough, or does the prompt-check script suggest two?
+- **Tool schema size.** `RenderChartInput`'s JSON Schema is about 17 KB minified (snapshot in `lib/spec/__snapshots__/`), sent with every request. Check its token cost in M3 alongside prompt caching and the prompt-check script, before trimming any descriptions.
+- **Attribution and sampling are the app's job.** The TfL attribution and the bike sample ratio (1 in 30.8) must be shown by the app wherever the bikes dataset appears, not left to the model's subtitles, which it may omit or get wrong.
