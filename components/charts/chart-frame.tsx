@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, type RefObject, useEffect, useId, useRef, useState } from "react";
-import type { ScaleBand, ScaleLinear, ScalePoint, ScaleTime } from "d3-scale";
+import type { ScaleBand, ScaleLinear, ScaleLogarithmic, ScalePoint, ScaleTime } from "d3-scale";
 import type { DatasetMeta } from "@/lib/data/datasets";
 import { bucketTicks, formatBuckets, isoToUtcDate } from "@/lib/data/dates";
 import type { TimeUnit } from "@/lib/spec";
@@ -11,6 +11,7 @@ import type { TimeUnit } from "@/lib/spec";
 // bucket starts and are labelled by period, e.g. "Jan 2025", "Feb" (D-026).
 export type Axis =
   | { kind: "linear"; scale: ScaleLinear<number, number>; label: string; grid?: boolean }
+  | { kind: "log"; scale: ScaleLogarithmic<number, number>; label: string; grid?: boolean }
   | { kind: "time"; scale: ScaleTime<number, number>; label: string; unit?: TimeUnit }
   | { kind: "band"; scale: ScaleBand<string>; label: string; unit?: TimeUnit }
   | { kind: "point"; scale: ScalePoint<string>; label: string };
@@ -26,6 +27,10 @@ type ChartFrameProps = {
   dataset: DatasetMeta;
   // A footnote about this chart, shown above the attribution.
   note?: string;
+  // What the chart shows, in words, for screen readers (describeChart).
+  description: string;
+  // Shown in place of the plot when the reader asks for the table.
+  table: ReactNode;
   // Total SVG height in pixels, margins included.
   height: number;
   // Scales depend on the plot's size, which depends on the measured width.
@@ -43,9 +48,11 @@ const LINE_HEIGHT = 14;
 const MIN_LEFT = 32;
 const MAX_LEFT_SHARE = 0.4;
 
-export function ChartFrame({ title, subtitle, legend, dataset, note, height, axes, children }: ChartFrameProps) {
+export function ChartFrame({ title, subtitle, legend, dataset, note, description, table, height, axes, children }: ChartFrameProps) {
   const titleId = useId();
+  const descriptionId = useId();
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const [showTable, setShowTable] = useState(false);
 
   return (
     <figure className="flex flex-col gap-3">
@@ -55,22 +62,40 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, height, axe
         </h2>
         {subtitle && <p className="text-sm opacity-70">{subtitle}</p>}
       </figcaption>
-      {legend && legend.items.length > 1 && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          {legend.title && <span className="opacity-70">{legend.title}</span>}
-          <ul aria-label={legend.title ?? "Legend"} className="contents">
-            {legend.items.map((item) => (
-              <li key={item.label} className="flex items-center gap-1.5">
-                <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ background: item.color }} />
-                {item.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div ref={ref} className="w-full">
-        {width > 0 && (
-          <Plot width={width} height={height} titleId={titleId} axes={axes}>
+      <p id={descriptionId} className="sr-only">
+        {description}
+      </p>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        {/* The table's column headers name the series, so it needs no legend. */}
+        {!showTable && legend && legend.items.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {legend.title && <span className="opacity-70">{legend.title}</span>}
+            <ul aria-label={legend.title ?? "Legend"} className="contents">
+              {legend.items.map((item) => (
+                <li key={item.label} className="flex items-center gap-1.5">
+                  <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ background: item.color }} />
+                  {item.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          aria-pressed={showTable}
+          onClick={() => setShowTable((shown) => !shown)}
+          className="rounded border border-(--chart-axis) px-2 py-0.5 text-xs opacity-80 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          {showTable ? "View as chart" : "View as table"}
+        </button>
+      </div>
+      {showTable && table}
+      {/* Hidden rather than unmounted, so its ResizeObserver stays attached. */}
+      <div ref={ref} hidden={showTable} className="w-full">
+        {width > 0 && !showTable && (
+          <Plot width={width} height={height} titleId={titleId} descriptionId={descriptionId} axes={axes}>
             {children}
           </Plot>
         )}
@@ -88,9 +113,10 @@ function Plot({
   width,
   height,
   titleId,
+  descriptionId,
   axes,
   children,
-}: Pick<ChartFrameProps, "height" | "axes" | "children"> & { width: number; titleId: string }) {
+}: Pick<ChartFrameProps, "height" | "axes" | "children"> & { width: number; titleId: string; descriptionId: string }) {
   const innerHeight = Math.max(0, height - MARGIN.top - MARGIN.bottom);
   // y ticks don't depend on the width, so a provisional layout sizes the left margin.
   const provisional = axes({ width: Math.max(0, width - MIN_LEFT - MARGIN.right), height: innerHeight });
@@ -105,7 +131,7 @@ function Plot({
   const yTicks = ticksFor(scales.y, inner.height, "y");
 
   return (
-    <svg width={width} height={height} role="img" aria-labelledby={titleId} className="block overflow-visible text-xs">
+    <svg width={width} height={height} role="img" aria-labelledby={titleId} aria-describedby={descriptionId} className="block overflow-visible text-xs">
       <g transform={`translate(${left},${MARGIN.top})`}>
         {isGridded(scales.y) &&
           yTicks.map((t) => (
@@ -148,7 +174,7 @@ const tickStyle = { fill: "var(--chart-muted)", fontVariantNumeric: "tabular-num
 const labelStyle = { fill: "var(--chart-muted)", fontWeight: 600 };
 
 function isGridded(axis: Axis): boolean {
-  return axis.kind === "linear" && axis.grid === true;
+  return (axis.kind === "linear" || axis.kind === "log") && axis.grid === true;
 }
 
 // The zero line doubles as the baseline, so it is drawn in the axis colour.
@@ -162,6 +188,16 @@ function ticksFor(axis: Axis, length: number, side: Side): Tick[] {
       const count = tickCount(length, side);
       const format = axis.scale.tickFormat(count);
       return axis.scale.ticks(count).map((v) => ({ offset: axis.scale(v), label: format(v) }));
+    }
+    case "log": {
+      // A log scale offers a tick at every 1–9 of each decade; tickFormat
+      // leaves the ones it wouldn't label blank, so those are dropped.
+      const count = tickCount(length, side);
+      const format = axis.scale.tickFormat(count, ",");
+      return axis.scale
+        .ticks(count)
+        .map((v) => ({ offset: axis.scale(v), label: format(v) }))
+        .filter((t) => t.label !== "");
     }
     case "time": {
       const count = tickCount(length, side);

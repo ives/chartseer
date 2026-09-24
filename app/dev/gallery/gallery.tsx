@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Profiler, type ProfilerOnRenderCallback, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Chart } from "@/components/charts/chart";
 import { type DatasetMeta, datasets } from "@/lib/data/datasets";
 import { type InferredDataset, inferDataset } from "@/lib/data/infer";
@@ -49,7 +49,9 @@ export function Gallery() {
             <section key={example.id} className="flex flex-col gap-3">
               <p className="font-mono text-xs opacity-60">{example.id}</p>
               {result.ok ? (
-                <Chart spec={result.spec} data={prepareChartData(inferred.rows, inferred.summary, result.spec, meta)} dataset={meta} />
+                <Timed id={example.id}>
+                  <Chart spec={result.spec} data={prepareChartData(inferred.rows, inferred.summary, result.spec, meta)} dataset={meta} />
+                </Timed>
               ) : (
                 <ul className="list-disc pl-5 text-sm text-red-600">
                   {result.errors.map((e) => (
@@ -67,5 +69,39 @@ export function Gallery() {
           );
         })}
     </main>
+  );
+}
+
+type Timing = { phase: string; render: number; paint: number };
+
+// How long each commit of a chart takes: React's render and commit time, and
+// the time until the browser has painted it, approximated by the next frame
+// plus a task. Dev-mode React is slower than production, so these are upper
+// bounds. The profiled subtree is memoised: re-creating the Profiler when the
+// readout updates would report an empty commit, which would update the readout.
+function Timed({ id, children }: { id: string; children: ReactNode }) {
+  const [timings, setTimings] = useState<Timing[]>([]);
+  const profiled = useMemo(() => {
+    const onRender: ProfilerOnRenderCallback = (_id, phase, actualDuration, _base, startTime) => {
+      requestAnimationFrame(() =>
+        setTimeout(() => {
+          const timing = { phase, render: actualDuration, paint: performance.now() - startTime };
+          setTimings((previous) => [...previous.slice(-3), timing]);
+        }),
+      );
+    };
+    return (
+      <Profiler id={id} onRender={onRender}>
+        {children}
+      </Profiler>
+    );
+  }, [id, children]);
+  return (
+    <>
+      {profiled}
+      <p className="font-mono text-xs opacity-60" data-timings={JSON.stringify(timings)}>
+        {timings.map((t) => `${t.phase}: render ${Math.round(t.render)} ms, to paint ${Math.round(t.paint)} ms`).join(" · ")}
+      </p>
+    </>
   );
 }

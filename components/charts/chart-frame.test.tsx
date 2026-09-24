@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { scaleBand, scaleLinear } from "d3-scale";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { datasets } from "@/lib/data/datasets";
@@ -17,6 +17,8 @@ function renderFrame(props: { subtitle?: string; legend?: LegendItem[]; dataset?
       subtitle={props.subtitle}
       legend={props.legend && { title: "flavour", items: props.legend }}
       dataset={datasets[props.dataset ?? "gelato"]}
+      description="Bar chart of Scoops by Shop."
+      table={<table aria-label="Scoops table" />}
       height={300}
       axes={axes}
     >
@@ -68,6 +70,29 @@ describe("ChartFrame", () => {
     renderFrame({ dataset: "bikes" });
     expect(screen.getByText(datasets.bikes.attribution)).toBeTruthy();
     expect(screen.getByText(/1 in 30\.8 hires/)).toBeTruthy();
+  });
+
+  it("swaps the legend and plot for the table, and back", () => {
+    renderFrame({
+      legend: [
+        { label: "Pistachio", color: "var(--chart-1)" },
+        { label: "Stracciatella", color: "var(--chart-2)" },
+      ],
+    });
+    const button = screen.getByRole("button", { name: "View as table" });
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByRole("table")).toBeNull();
+
+    fireEvent.click(button);
+    expect(screen.getByRole("table", { name: "Scoops table" })).toBeTruthy();
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    // The attribution stays with the data, whichever way it is shown.
+    expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "View as chart" }));
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("list", { name: "flavour" })).toBeTruthy();
   });
 
   it("shows the attribution without a note when the dataset has none", () => {

@@ -151,7 +151,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - **Dates sit on a UTC axis.** `isoToUtcDate` reads zone-less date-times as UTC, as JavaScript already does for date-only strings, so a chart looks the same in every time zone.
 - **The value axis always includes zero**, and gridlines are drawn only on it. Stacked bars use the diverging offset, so negative values stack below the baseline.
 - **Annotations off the axis are skipped**, not errors: a category removed by a filter or `limit`, or a date outside the plotted range. Ranges on a time axis are clamped to it.
-- **Area and scatter show a placeholder** with the title and attribution until their renderers exist.
+- ~~**Area and scatter show a placeholder** with the title and attribution until their renderers exist.~~ *Superseded by D-027 and D-028.*
 **Consequences:** Renderers stay declarative and testable in jsdom. Estimated label widths can be off for very wide or narrow glyphs; revisit only if real labels collide. A bar or stacked segment thinner than the 2px gap disappears.
 
 ## D-023 · 2026-09-24 · Component tests
@@ -186,3 +186,45 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - **Rejected for partial buckets:** scaling a partial total up to a full period invents numbers; widening the filters overrides the user's range; dropping the buckets loses real data without a word.
 - **Charts import date helpers from `lib/data`.** This refines D-020: `components/charts/` may import pure functions from `lib/data/dates.ts` as well as types, as the line chart already did with `isoToUtcDate`.
 **Consequences:** The gelato daily example is now weekly (`gelato-weekly-2025`), and its first and last weeks are drawn as partial. The Brixton daily-gap test keeps its daily spec inline. A new `gelato-monthly-revenue` example shows 24 whole months as stacked bars. The tool schema grows by one enum on three x axes. D-021's note that gap-filling needs a known granularity still stands: buckets aren't gap-filled, so a period with no rows at all is absent rather than null.
+
+## D-027 · 2026-09-24 · Area charts
+
+**Context:** The area renderer shares the line chart's x axis, annotations and partial-bucket handling. It also has to settle how overlapping and stacked areas look.
+**Decision:**
+- **Shared helpers.** The line chart's x axis, positioning, annotation placement and dashed-edge paths move to `components/charts/cartesian.ts`, now that a second chart uses them.
+- **Plain areas are a wash.** Each series fills down to zero at `--chart-area-opacity` (0.12 light, 0.2 dark), with a solid 2px edge in the series colour, so overlapping series stay readable. Gaps and lone values behave as on lines.
+- **Stacks use the default offset,** with missing values stacked as 0 (D-021). Bars use the diverging offset (D-022), but on areas it makes bands cross wherever a value changes sign. Stacked fills are opaque and separated by a 2px line in the surface colour.
+- **Partial buckets** get a dashed edge on plain areas, like lines. On stacked areas they are filled lighter, like bars. The footnote says "Dashed" or "Lighter" to match.
+**Consequences:** A stacked area with negative values draws them overlapping below the layer beneath rather than below zero. No bundled data has any. `stacked` with a single series draws a plain area.
+
+## D-028 · 2026-09-24 · Scatter charts
+
+**Context:** Scatter axes are two numeric measures, not a category or time axis plus a value.
+**Decision:**
+- **Axes span the data, not zero.** Each axis runs from its smallest to its largest value, rounded out with `.nice()`. D-022's zero baseline is for measures; a longitude axis from 0 would squash London into a line. With no spread, the axis widens by a unit, or a decade on a log scale.
+- **Log axes** are a new frame `Axis` kind. Ticks come from `scaleLog().ticks()`, keeping only those `tickFormat` labels (1, 2, 10, 20, 100 …). Both scatter axes have gridlines.
+- **Points** are 4px-radius circles in the group colour at `--chart-point-opacity` (0.5 light, 0.6 dark). The opacity is `fill-opacity` on each circle, so overlapping points build up density. There is no surface ring: at 25,000 points it would hide the density.
+- **Numeric axes only.** The contract allows only number columns on scatter axes. A date axis (e.g. duration against start time) would need a schema and validation change. Deferred until a real prompt asks for it.
+**Consequences:** Groups are drawn in order, so a later group covers an earlier one where points coincide. On the bikes station map, 25,132 hires fall on about 805 station positions, and Classic almost hides E-bike.
+
+## D-029 · 2026-09-24 · Accessible description and table view
+
+**Context:** ARCHITECTURE §10 promised `describeSpec(spec, data)` in `lib/spec` and a "view as table" toggle. The description needs `ChartData`, which is defined in `lib/data` (D-020), and `lib/spec` can't import it.
+**Decision:**
+- **`describeChart(spec, data)` lives in `lib/data/describe.ts`.** It returns up to three sentences: the chart type, measure, x and series; the x span, or the category count; and the value range with where the largest value is. Stacked charts report totals. Scatters report point count, groups and log axes. It reads the prepared data, so it describes exactly what is drawn.
+- **Numbers use `Intl.NumberFormat("en-GB")`** with at most two decimals. Unlike month names (D-026), en-GB digit grouping is the same on every runtime. `formatNumber` and `formatXValue` are shared with the table.
+- **`chart.tsx` builds the description and the table once** and passes them through each renderer to `ChartFrame`. The frame owns the description (a visually hidden paragraph the SVG points to with `aria-describedby`) and the toggle: an `aria-pressed` button that swaps the plot for the table. The legend is hidden in table view. The plot's container stays mounted, but hidden, so its `ResizeObserver` stays attached.
+- **`components/charts/` may import pure functions from `lib/data`,** not just `dates.ts`. This refines D-026. `describe.ts` is pure, like `dates.ts`.
+**Consequences:** Descriptions are in English and deterministic, so tests pin them exactly. The table renders only while it is shown. At 25,000 rows it is slow (D-030).
+
+## D-030 · 2026-09-24 · SVG for large scatters, measured
+
+**Context:** ARCHITECTURE §14 asked whether large scatters need sampling or canvas. The bikes station map draws 25,132 points.
+**Decision:** Keep SVG for now. Measured on `/dev/gallery` in Chrome, with dev-mode React, so these are upper bounds. Medians of three runs:
+- Redrawing the map alone (table → chart): React render 337 ms, painted after 428 ms.
+- First load: the map's render is 391 ms of a gallery-wide commit, painted after about 580 ms.
+- A width change (every chart redraws): painted after about 510 ms, so a drag-resize runs at about two frames a second.
+- The 25,132-row table: React render about 810 ms, painted after about 2.1 s.
+- `prepareChartData` runs outside the measured tree and is not included.
+The gallery's per-chart readout (React `Profiler`, then the next frame plus a task) stays in place, so this can be re-measured.
+**Consequences:** One-off rendering is acceptable; resizing and the table view are sluggish. Options, not yet chosen: canvas above a point threshold (this loses per-point DOM for hover); drawing each distinct position once (the map has about 805); debouncing width changes; paginating or capping the table. Revisit before M5's responsive and accessibility pass.

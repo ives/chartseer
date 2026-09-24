@@ -48,6 +48,34 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     } satisfies ChartSpec,
   },
   {
+    id: "bikes-hourly-by-bike-type",
+    dataset: bikesSummary,
+    spec: {
+      version: 1,
+      type: "area",
+      title: "Classic bikes carry most hires at every hour",
+      subtitle: "Journeys by starting hour and bike type",
+      x: { field: "hour", label: "Hour of day" },
+      y: { aggregate: "count", label: "Journeys" },
+      series: { field: "bike_type" },
+      stacked: true,
+    } satisfies ChartSpec,
+  },
+  {
+    id: "bikes-station-duration",
+    dataset: bikesSummary,
+    spec: {
+      version: 1,
+      type: "scatter",
+      title: "Do busier stations have shorter hires?",
+      subtitle: "One point per start station",
+      per: { field: "start_station" },
+      // Hires per station span several orders of magnitude.
+      x: { aggregate: "count", label: "Journeys started", scale: "log" },
+      y: { field: "duration_min", aggregate: "median", label: "Median duration (min)" },
+    } satisfies ChartSpec,
+  },
+  {
     id: "gelato-weekly-2025",
     dataset: gelatoSummary,
     spec: {
@@ -63,6 +91,18 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
         { field: "date", op: "lte", value: "2025-12-31" },
       ],
       annotations: [{ kind: "range", from: "2025-06-19", to: "2025-07-01", label: "Heatwave" }],
+    } satisfies ChartSpec,
+  },
+  {
+    id: "gelato-monthly-scoops",
+    dataset: gelatoSummary,
+    spec: {
+      version: 1,
+      type: "area",
+      title: "Scoops peak every summer",
+      subtitle: "All shops, 2024–2025",
+      x: { field: "date", timeUnit: "month" },
+      y: { field: "scoops", aggregate: "sum", label: "Scoops" },
     } satisfies ChartSpec,
   },
   {

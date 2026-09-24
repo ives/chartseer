@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { datasets } from "@/lib/data/datasets";
+import { describeChart } from "@/lib/data/describe";
 import { inferDataset } from "@/lib/data/infer";
 import { parseCsv } from "@/lib/data/parse";
 import { prepareChartData } from "@/lib/data/prepare";
@@ -110,10 +111,77 @@ describe("Chart", () => {
     expect(screen.getByRole("img").querySelectorAll("path[data-partial]")).toHaveLength(0);
   });
 
-  it("shows a placeholder, the title and the attribution for scatter charts", () => {
-    renderChart({ ...base, type: "scatter", x: { field: "max_temp_c" }, y: { field: "scoops" } });
-    expect(screen.getByText("Scoops")).toBeTruthy();
-    expect(screen.getByText(/not built yet/)).toBeTruthy();
-    expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
+  it("draws a translucent area and an edge per series", () => {
+    renderChart({ ...base, type: "area", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" }, series: { field: "shop" } });
+    // Per series: one fill and one edge. Brixton's gap on 2025-06-02 leaves
+    // lone values either side, which are dots, not paths.
+    const paths = [...screen.getByRole("img").querySelectorAll("path")];
+    expect(paths.filter((p) => p.style.opacity === "var(--chart-area-opacity)")).toHaveLength(2);
+    expect(paths).toHaveLength(4);
+  });
+
+  it("stacks areas, with partial buckets lighter", () => {
+    renderChart({ ...base, type: "area", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" }, series: { field: "shop" }, stacked: true });
+    expect(screen.getByRole("img").querySelectorAll("path[data-partial]")).toHaveLength(0);
+    cleanup();
+    renderChart({ ...base, type: "area", x: { field: "date", timeUnit: "month" }, y: { aggregate: "count" } }, seasonal);
+    // A single series isn't stacked: its edge is dashed into partial months.
+    expect(screen.getByRole("img").querySelectorAll("path[data-partial]")).toHaveLength(1);
+    expect(screen.getByText(/^Dashed: Nov 2024 and Feb 2025 cover only part/)).toBeTruthy();
+  });
+
+  it("draws a point per row, grouped, with a legend", () => {
+    renderChart({ ...base, type: "scatter", x: { field: "max_temp_c" }, y: { field: "scoops" }, group: { field: "shop" } });
+    // Brixton's 2025-06-02 row has no scoops, so four of the five rows are points.
+    expect(screen.getByRole("img").querySelectorAll("circle")).toHaveLength(4);
+    const legend = screen.getByRole("list", { name: "Shop" });
+    expect(legend.textContent).toContain("Brixton");
+    expect(legend.textContent).toContain("Richmond");
+  });
+
+  it("labels a log axis only at round values", () => {
+    renderChart({ ...base, type: "scatter", x: { field: "max_temp_c" }, y: { field: "scoops", scale: "log" } });
+    const ticks = [...screen.getByRole("img").querySelectorAll("text")].map((t) => t.textContent);
+    expect(ticks).toContain("10");
+    expect(ticks).not.toContain("");
+  });
+
+  it.each([
+    ["line", { type: "line", x: { field: "date" }, y: { aggregate: "count" } }],
+    ["area", { type: "area", x: { field: "date" }, y: { aggregate: "count" } }],
+    ["bar", { type: "bar", x: { field: "shop" }, y: { aggregate: "count" } }],
+    ["scatter", { type: "scatter", x: { field: "max_temp_c" }, y: { field: "scoops" } }],
+  ] as const)("describes the %s chart to screen readers", (_type, spec) => {
+    const input = { ...base, ...spec } as ChartSpec;
+    renderChart(input);
+    const result = parseSpec(input, shops.summary);
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    const expected = describeChart(result.spec, prepareChartData(shops.rows, shops.summary, result.spec));
+    const svg = screen.getByRole("img", { name: "Scoops" });
+    expect(document.getElementById(svg.getAttribute("aria-describedby") ?? "")?.textContent).toBe(expected);
+  });
+
+  it("shows the data as a table, marking partial and missing values", () => {
+    renderChart({ ...base, type: "bar", x: { field: "date", timeUnit: "month" }, y: { field: "scoops", aggregate: "sum" } }, seasonal);
+    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    const table = screen.getByRole("table", { name: "Scoops" });
+    const headers = [...table.querySelectorAll("th[scope=col]")].map((th) => th.textContent);
+    expect(headers).toEqual(["Month", "Sum of scoops"]);
+    const rows = [...table.querySelectorAll("th[scope=row]")].map((th) => th.textContent);
+    expect(rows).toEqual(["Nov 2024 (partial)", "Dec 2024", "Jan 2025", "Feb 2025 (partial)"]);
+    cleanup();
+
+    renderChart({ ...base, type: "line", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" }, series: { field: "shop" } });
+    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    // Richmond has no row on 2025-06-03.
+    expect(screen.getByRole("table").textContent).toContain("no data");
+  });
+
+  it("lists scatter points with their per value", () => {
+    renderChart({ ...base, type: "scatter", per: { field: "date" }, x: { field: "max_temp_c", aggregate: "mean" }, y: { field: "scoops", aggregate: "sum" } });
+    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    const table = screen.getByRole("table", { name: "Scoops" });
+    expect([...table.querySelectorAll("th[scope=col]")].map((th) => th.textContent)).toEqual(["Date", "Mean of max temp c", "Sum of scoops"]);
+    expect(table.querySelectorAll("tbody tr")).toHaveLength(3);
   });
 });
