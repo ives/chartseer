@@ -51,6 +51,8 @@ Import direction is one-way: `app → components, lib/ai → lib/data → lib/sp
 
 ## 5. The chart spec (v1 draft — to be refined in Milestone 1)
 
+> **Superseded:** `lib/spec/schema.ts` is now the source of truth. The sketch below is kept for history; D-014 in `docs/DECISIONS.md` lists what changed.
+
 Design rules:
 
 - **Discriminated union on `type`**, so options that only make sense for bars exist only on bars. Invalid combinations become unrepresentable.

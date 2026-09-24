@@ -73,3 +73,22 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 **Context:** The Next.js Vitest guide installs jsdom, React Testing Library, `@vitejs/plugin-react` and `vite-tsconfig-paths` alongside Vitest. Until M2, the only tests will be pure functions in `lib/`.
 **Decision:** Install Vitest only. Tests run in the `node` environment. The `@` alias is set by hand in `vitest.config.mts` rather than with the tsconfig-paths plugin. `passWithNoTests` is on until M1 adds the first tests. `pnpm typecheck` runs `next typegen` before `tsc --noEmit`, because `app/layout.tsx` uses the generated `LayoutProps` type, which doesn't exist on a fresh clone.
 **Consequences:** One dependency instead of six. jsdom and React Testing Library arrive with the first chart component tests (M2). If the tsconfig `paths` change, the Vitest alias has to change with them.
+
+## D-013 · 2026-09-24 · Zod v4, strict objects
+
+**Context:** The spec schema is both the runtime validator and, via `z.toJSONSchema`, the model's documentation for the `renderChart` tool.
+**Decision:** Zod 4 (`import { z } from "zod"`), using the built-in `z.toJSONSchema` rather than a separate converter. Every object in `lib/spec` is a `z.strictObject`.
+**Consequences:** An unknown key (a typo, or `colour` on a spec) is a validation error the model can correct on its retry, rather than being silently dropped. The JSON Schema carries `additionalProperties: false`. The cost: adding an optional field to the spec is a breaking change for anything that already sends extra keys — which today is nothing.
+
+## D-014 · 2026-09-24 · Refinements to the v1 spec sketch
+
+**Context:** Writing the first example specs against the two demo datasets exposed gaps in the sketch in `docs/ARCHITECTURE.md` §5.
+**Decision:** `lib/spec/schema.ts` is now authoritative. Changes from the sketch:
+- **Count takes no field.** A measure is `{ aggregate: "count" }` or `{ field, aggregate: sum|mean|median|min|max }`. `aggregate` is always required, so there is no hidden default. (Bikes has no ID column, so "count of what?" had no good answer.)
+- **Log scale on scatter only.** Scatter has its own numeric axes with an optional `scale`. Bars and stacked areas need a zero baseline, so log is never offered there. Add it to line charts if a real prompt needs it.
+- **No x-scale field.** On line, area and bar charts, the x scale follows the column kind.
+- **Annotations only on line, area and bar charts.** On a scatter there's no single x axis for a note to sit on.
+- **Filters are split.** A comparison has one `value`; `in` has a non-empty `values` list. A single `value` field that could be a scalar or an array was easy to get wrong.
+- **Dates are ISO 8601 strings** in filters and annotations.
+- **Bars take an optional `limit`** (1–50): keep the top N categories after sorting. It makes high-cardinality columns such as `start_area` (126 values) chartable.
+**Consequences:** Semantic validation (next) checks what Zod can't: that dates really are ISO dates, that fields exist and have the right kind.
