@@ -192,7 +192,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 - ~~Which two demo datasets?~~ Settled: TfL Santander Cycles and Gelateria Nebbia (D-016, `docs/DATA.md`).
 - **Large scatter plots.** Measured in M2 (D-030): the 25,132-point bikes map draws in SVG in about 0.4 s, but a resize takes about 0.5 s per width and its table view about 2 s. Kept as SVG for now. Decide whether to switch to canvas, sample, or cap the table before M5.
 - Is one validation retry enough, or does the prompt-check script suggest two?
-- **Tool schema size.** `RenderChartInput`'s JSON Schema is about 17 KB minified (snapshot in `lib/spec/__snapshots__/`), sent with every request. Check its token cost in M3 alongside prompt caching and the prompt-check script, before trimming any descriptions.
+- ~~**Tool schema size.**~~ Settled for now: the cached prefix of tools, rules and dataset is about 10,200 tokens, and later turns read it from cache (D-033).
 - **Attribution and sampling are the app's job.** The TfL attribution and the bike sample ratio (1 in 30.8) must be shown by the app wherever the bikes dataset appears, not left to the model's subtitles, which it may omit or get wrong.
 - **Dark mode (M5).** Charts follow the page theme, with no white panel behind them. Consider a subtly raised panel behind each chart and fainter gridlines. Any future export or download is always light-themed, whatever the page theme.
 - **Locale formats in uploads.** Column inference doesn't yet recognise UK-style dates (`24/09/2026`) or numbers with thousands separators (`1,234`); they come through as categories (D-019). Decide in M4, when uploads arrive.

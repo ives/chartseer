@@ -234,3 +234,25 @@ The gallery's per-chart readout (React `Profiler`, then the next frame plus a ta
 **Context:** The M3 system prompt should show the model readable column labels (D-025). The server doesn't know which dataset the browser loaded. Sending labels, or a dataset id, as a separate field would add to the request body.
 **Decision:** `ColumnSummary` gets an optional `label`. `inferDataset` fills it on every column: from `DatasetMeta.columnLabels` if given, otherwise `deriveLabel`, so uploaded files get labels too. The fixtures carry the bundled labels. The request body stays messages, dataset summary and current spec.
 **Consequences:** The model sees labels, so it can use them in titles, while specs keep using `name`. `label` is optional in the schema, so a hand-written summary without it is still valid. `prepareChartData` still takes labels from its `meta` argument; switching it to read the summary would be a separate change.
+
+## D-032 · 2026-09-28 · AI SDK v7; how the retry works
+
+**Context:** M3 needs streaming and tool calling (D-003) and the one-retry rule (D-006). The installed versions are `ai` 7.0.118 and `@ai-sdk/anthropic` 4.0.65. v7 renames several v5-era APIs: `isStepCount` rather than `stepCountIs`, `instructions` for the system prompt, and `toUIMessageStream` with `createUIMessageStreamResponse` for the response.
+**Decision:**
+- **The SDK doesn't validate tool input.** Given a Zod schema, the SDK rejects bad input itself, with Zod's generic messages, before `execute` runs. Instead, `renderChart`'s input schema is `jsonSchema()` over `RenderChartInput`'s JSON Schema, with no validate function. The model still sees the full schema, but `execute` gets the raw input and `parseSpec` writes every error. The only check before `parseSpec` is that the input is `{ spec }`.
+- **One retry per user message.** Each POST is one user message. `stopWhen` stops once a `renderChart` result is `ok`, with a hard cap of three steps. After two failed results, `prepareStep` sets `toolChoice: "none"`, so the last step can only be prose explaining the problem. The prompt tells the model it gets two attempts.
+- **The model writes its sentence before the tool call.** The loop stops as soon as a chart is valid, so nothing is generated after it.
+**Consequences:** Every error message the model sees is ours, and tested. The Anthropic provider handles `toolChoice: "none"` by leaving the tools out of the request. The explanation step therefore misses the cache (D-033), and it sends history that contains `tool_use` blocks with no tools defined. That hasn't been tested against the live API yet.
+
+## D-033 · 2026-09-28 · Prompt cache breakpoints
+
+**Context:** Every request repeats the tool schema (about 17 KB), the rules and the dataset summary. Only the messages and the current spec change from turn to turn.
+**Decision:** The system prompt goes to `instructions` as three system messages, most stable first: the rules, the dataset summary and the current spec. The first two carry an Anthropic `cacheControl: { type: "ephemeral" }` breakpoint. Anthropic caches in the order tools, then system, then messages, so the first breakpoint covers the tools and the rules, and the second adds the dataset. The rules are a constant, and a test checks that they don't vary by dataset or spec. The current spec and the messages come after both breakpoints.
+**Consequences:** The first request on a dataset writes the cache; later turns on the same dataset read it for about five minutes. Changing any word of the rules or the tool descriptions invalidates the cache for everyone, which is expected. The cache options are specific to Anthropic, and other providers ignore them (D-004).
+**Measured** (2026-09-28, `claude-sonnet-5`, gelato, first turn): the cached prefix (tools, rules and dataset) is 10,181 tokens of 10,285 input. The first request wrote it; an identical second request read all of it back.
+
+## D-034 · 2026-09-28 · `/api/chat` is off by default; logic lives in `lib/ai/chat.ts`
+
+**Context:** The endpoint spends money on every call, and rate limiting doesn't arrive until M6. `app/` holds no logic, and nothing may import from it, so a route can't be tested directly.
+**Decision:** `POST /api/chat` returns 503 unless `CHARTSEER_CHAT_ENABLED` is `"true"`, and checks that before reading the body. `lib/ai/chat.ts` holds everything else. `parseChatRequest` checks the body with Zod (1–50 messages, `DatasetSummary`, nullable `ChartSpec`), then with the SDK's `safeValidateUIMessages`, and rejects system messages. `streamChart` takes an optional model, so tests pass the SDK's mock. In development, `onFinish` logs total token usage, including cache reads and writes.
+**Consequences:** Production stays dark until the flag is set on Vercel. Environment variables: `ANTHROPIC_API_KEY` (read by the provider), `CHARTSEER_MODEL` (default `claude-sonnet-5`) and `CHARTSEER_CHAT_ENABLED`.
