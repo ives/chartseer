@@ -4,6 +4,12 @@
   --background: #ffffff;
   --foreground: #171717;
 
+  /* App chrome: panels, borders and secondary text. */
+  --surface: #f6f6f3;
+  --border: #e1e0d9;
+  --muted: #6b6a65;
+  --danger: #b42318;
+
   /* Chart series, assigned in order (D-024). Slots 1–8 are a validated
      categorical palette; 9–12 extend it and pass the same checks. */
   --chart-1: #2a78d6;
@@ -39,6 +45,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -47,6 +57,11 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    --surface: #161615;
+    --border: #2c2c2a;
+    --muted: #a3a29b;
+    --danger: #f97066;
 
     --chart-1: #3987e5;
     --chart-2: #d95926;

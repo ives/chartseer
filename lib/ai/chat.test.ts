@@ -1,8 +1,8 @@
-import { simulateReadableStream } from "ai";
+import { APICallError, RetryError, simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
 import { type ChartSpec, examples, gelatoSummary } from "@/lib/spec";
-import { type ChatRequest, parseChatRequest, streamChart } from "./chat";
+import { type ChatRequest, chatErrorCode, parseChatRequest, streamChart } from "./chat";
 
 type StreamResult = Extract<NonNullable<ConstructorParameters<typeof MockLanguageModelV4>[0]>["doStream"], unknown[]>[number];
 
@@ -108,5 +108,20 @@ describe("parseChatRequest", () => {
     const result = await parseChatRequest(input);
     expect(result.ok).toBe(false);
     expect(!result.ok && result.errors[0]).toMatch(error);
+  });
+});
+
+describe("chatErrorCode", () => {
+  const apiError = (statusCode: number) =>
+    new APICallError({ message: "provider details", url: "https://example.test", requestBodyValues: {}, statusCode });
+
+  it.each([
+    ["a rate limit", apiError(429), "rate_limited"],
+    ["an overload", apiError(529), "overloaded"],
+    ["an overload after retries", new RetryError({ message: "x", reason: "maxRetriesExceeded", errors: [apiError(529)] }), "overloaded"],
+    ["a server error", apiError(500), "failed"],
+    ["anything else", new Error("boom"), "failed"],
+  ])("maps %s", (_name, error, code) => {
+    expect(chatErrorCode(error)).toBe(code);
   });
 });

@@ -1,5 +1,6 @@
 import {
   type LanguageModel,
+  RetryError,
   type StepResult,
   type UIMessage,
   convertToModelMessages,
@@ -74,4 +75,20 @@ export async function streamChart(request: ChatRequest, model: LanguageModel = g
       );
     },
   });
+}
+
+// What the client is told when the stream fails: a stable code, never the
+// provider's message, which can include request details (D-036).
+export type ChatErrorCode = "rate_limited" | "overloaded" | "failed";
+
+export function chatErrorCode(error: unknown): ChatErrorCode {
+  // After its own retries, the SDK wraps the last failure.
+  const cause = RetryError.isInstance(error) ? error.lastError : error;
+  const status =
+    typeof cause === "object" && cause !== null && "statusCode" in cause && typeof cause.statusCode === "number"
+      ? cause.statusCode
+      : undefined;
+  if (status === 429) return "rate_limited";
+  if (status === 529) return "overloaded";
+  return "failed";
 }

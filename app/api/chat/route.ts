@@ -1,5 +1,5 @@
 import { createUIMessageStreamResponse, toUIMessageStream } from "ai";
-import { parseChatRequest, streamChart } from "@/lib/ai/chat";
+import { chatErrorCode, parseChatRequest, streamChart } from "@/lib/ai/chat";
 
 export async function POST(request: Request) {
   // Off unless switched on, so production stays dark until M6 (D-034).
@@ -17,5 +17,7 @@ export async function POST(request: Request) {
   if (!parsed.ok) return Response.json({ errors: parsed.errors }, { status: 400 });
 
   const result = await streamChart(parsed.request);
-  return createUIMessageStreamResponse({ stream: toUIMessageStream({ stream: result.stream }) });
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream, onError: chatErrorCode }),
+  });
 }

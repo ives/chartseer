@@ -256,3 +256,20 @@ The gallery's per-chart readout (React `Profiler`, then the next frame plus a ta
 **Context:** The endpoint spends money on every call, and rate limiting doesn't arrive until M6. `app/` holds no logic, and nothing may import from it, so a route can't be tested directly.
 **Decision:** `POST /api/chat` returns 503 unless `CHARTSEER_CHAT_ENABLED` is `"true"`, and checks that before reading the body. `lib/ai/chat.ts` holds everything else. `parseChatRequest` checks the body with Zod (1–50 messages, `DatasetSummary`, nullable `ChartSpec`), then with the SDK's `safeValidateUIMessages`, and rejects system messages. `streamChart` takes an optional model, so tests pass the SDK's mock. In development, `onFinish` logs total token usage, including cache reads and writes.
 **Consequences:** Production stays dark until the flag is set on Vercel. Environment variables: `ANTHROPIC_API_KEY` (read by the provider), `CHARTSEER_MODEL` (default `claude-sonnet-5`) and `CHARTSEER_CHAT_ENABLED`.
+
+## D-035 · 2026-09-28 · The studio: chat state and requests
+
+**Context:** M3 part 2 puts the chat on the home page. It needs a place for the page shell, a source for the chart state, and a request body the strict `/api/chat` schema accepts.
+**Decision:**
+- **The page shell lives in `components/studio/`:** the dataset picker, the chart area, the dataset loader, and `Workspace`, which holds one dataset's data, chat and chart. The chat UI stays in `components/chat/`. `Studio` remounts `Workspace` with `key={datasetId}`, so switching dataset clears the data, the messages and the chart history together.
+- **`useChat` from `@ai-sdk/react` 4.0.121,** wrapped in `useChartseerChat`. It pins `ai` 7.0.118, which matches ours, so the bundle has one copy of `ai`. Newer releases are held back by the repo's pnpm `minimumReleaseAge` policy.
+- **The chart history is derived from the messages:** every `renderChart` result that is `ok` *and* passes `parseSpec` against the summary loaded in the browser. The current chart is the last one. It can't drift from the conversation, and a broken spec can't reach `<Chart>` even if the server's copy of the summary differed. M4's undo can add a pointer into this list.
+- **The client builds the request body itself.** The SDK's default body adds `id`, `trigger` and `messageId`, which the server's strict schema rejects. `send` and `retry` pass `{ dataset, currentSpec }` as the per-call body, and the transport's `prepareSendMessagesRequest` keeps exactly those fields plus the messages (`buildChatBody`). The transport is a module-level constant: reading a ref from it breaks React's rules of refs.
+- **Screen readers:** the message list isn't a live region, because streamed text would be read out word by word. A `role="status"` line says "Working on it…" during a request, then the finished reply and "Chart drawn: {title}". Errors are announced by their own `role="alert"`. Focus returns to the input when a request ends.
+**Consequences:** No shadcn/ui yet: plain elements styled with Tailwind, plus `--surface`, `--border`, `--muted` and `--danger` tokens. The CSV loader repeats a few lines of the dev gallery's.
+
+## D-036 · 2026-09-28 · Chat errors: a code from the server, wording on the client
+
+**Context:** The user should see a short, friendly message for rate limits, an overloaded model, or the 503 switch, never provider details.
+**Decision:** The route passes `chatErrorCode` to `toUIMessageStream({ onError })`. It unwraps the SDK's `RetryError` and maps status 429 to `rate_limited`, 529 to `overloaded`, and anything else to `failed`, so errors inside the stream reach the client only as that code. HTTP errors (503, 400, a future 429) reach `useChat` as an `APICallError` with the status. `friendlyError` in `components/chat/error-message.ts` turns either kind into one sentence. The chat shows it with a "Try again" button that regenerates the reply.
+**Consequences:** The wording lives in one tested function. When rate limiting arrives in M6, a 429 from our own route already has a message.
