@@ -10,6 +10,7 @@ export const bikesSummary = {
   columns: [
     {
       name: "start_time",
+      label: "Start time",
       kind: "date",
       distinct: 16684,
       nulls: 0,
@@ -19,6 +20,7 @@ export const bikesSummary = {
     },
     {
       name: "date",
+      label: "Date",
       kind: "date",
       distinct: 31,
       nulls: 0,
@@ -28,16 +30,18 @@ export const bikesSummary = {
     },
     {
       name: "weekday",
+      label: "Day of the week",
       kind: "category",
       distinct: 7,
       nulls: 0,
       values: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     },
-    { name: "day_type", kind: "category", distinct: 2, nulls: 0, values: ["Weekday", "Weekend"] },
-    { name: "hour", kind: "number", distinct: 24, nulls: 0, min: 0, max: 23, examples: [0, 1, 2, 3, 4] },
-    { name: "season", kind: "category", distinct: 2, nulls: 0, values: ["Winter", "Spring"] },
+    { name: "day_type", label: "Day type", kind: "category", distinct: 2, nulls: 0, values: ["Weekday", "Weekend"] },
+    { name: "hour", label: "Hour of day", kind: "number", distinct: 24, nulls: 0, min: 0, max: 23, examples: [0, 1, 2, 3, 4] },
+    { name: "season", label: "Season", kind: "category", distinct: 2, nulls: 0, values: ["Winter", "Spring"] },
     {
       name: "start_station",
+      label: "Start station",
       kind: "category",
       distinct: 805,
       nulls: 0,
@@ -51,6 +55,7 @@ export const bikesSummary = {
     },
     {
       name: "start_area",
+      label: "Start area",
       kind: "category",
       distinct: 126,
       nulls: 0,
@@ -58,6 +63,7 @@ export const bikesSummary = {
     },
     {
       name: "start_lat",
+      label: "Start latitude",
       kind: "number",
       distinct: 493,
       nulls: 130,
@@ -67,6 +73,7 @@ export const bikesSummary = {
     },
     {
       name: "start_lon",
+      label: "Start longitude",
       kind: "number",
       distinct: 666,
       nulls: 130,
@@ -76,6 +83,7 @@ export const bikesSummary = {
     },
     {
       name: "end_station",
+      label: "End station",
       kind: "category",
       distinct: 806,
       nulls: 0,
@@ -89,6 +97,7 @@ export const bikesSummary = {
     },
     {
       name: "end_area",
+      label: "End area",
       kind: "category",
       distinct: 126,
       nulls: 0,
@@ -96,6 +105,7 @@ export const bikesSummary = {
     },
     {
       name: "end_lat",
+      label: "End latitude",
       kind: "number",
       distinct: 493,
       nulls: 125,
@@ -105,6 +115,7 @@ export const bikesSummary = {
     },
     {
       name: "end_lon",
+      label: "End longitude",
       kind: "number",
       distinct: 667,
       nulls: 125,
@@ -112,9 +123,10 @@ export const bikesSummary = {
       max: 0.005,
       examples: [-0.2078, -0.2135, -0.1228, -0.1747, -0.1257],
     },
-    { name: "round_trip", kind: "category", distinct: 2, nulls: 0, values: ["No", "Yes"] },
+    { name: "round_trip", label: "Round trip", kind: "category", distinct: 2, nulls: 0, values: ["No", "Yes"] },
     {
       name: "duration_min",
+      label: "Duration (min)",
       kind: "number",
       distinct: 930,
       nulls: 0,
@@ -122,7 +134,7 @@ export const bikesSummary = {
       max: 1365.5,
       examples: [40.1, 26.2, 6.5, 6, 9],
     },
-    { name: "bike_type", kind: "category", distinct: 2, nulls: 0, values: ["E-bike", "Classic"] },
+    { name: "bike_type", label: "Bike type", kind: "category", distinct: 2, nulls: 0, values: ["E-bike", "Classic"] },
   ],
   sampleRows: [
     {
@@ -190,6 +202,7 @@ export const gelatoSummary = {
   columns: [
     {
       name: "date",
+      label: "Date",
       kind: "date",
       distinct: 729,
       nulls: 0,
@@ -199,6 +212,7 @@ export const gelatoSummary = {
     },
     {
       name: "weekday",
+      label: "Day of the week",
       kind: "category",
       distinct: 7,
       nulls: 0,
@@ -206,6 +220,7 @@ export const gelatoSummary = {
     },
     {
       name: "shop",
+      label: "Shop",
       kind: "category",
       distinct: 5,
       nulls: 0,
@@ -213,6 +228,7 @@ export const gelatoSummary = {
     },
     {
       name: "flavour",
+      label: "Flavour",
       kind: "category",
       distinct: 7,
       nulls: 0,
@@ -226,10 +242,11 @@ export const gelatoSummary = {
         "Earl Grey",
       ],
     },
-    { name: "flavour_type", kind: "category", distinct: 2, nulls: 0, values: ["Gelato", "Sorbet"] },
-    { name: "scoops", kind: "number", distinct: 274, nulls: 0, min: 1, max: 327, examples: [70, 69, 75, 61, 33] },
+    { name: "flavour_type", label: "Flavour type", kind: "category", distinct: 2, nulls: 0, values: ["Gelato", "Sorbet"] },
+    { name: "scoops", label: "Scoops", kind: "number", distinct: 274, nulls: 0, min: 1, max: 327, examples: [70, 69, 75, 61, 33] },
     {
       name: "revenue_gbp",
+      label: "Revenue (£)",
       kind: "number",
       distinct: 1320,
       nulls: 0,
@@ -239,6 +256,7 @@ export const gelatoSummary = {
     },
     {
       name: "max_temp_c",
+      label: "Peak temperature (°C)",
       kind: "number",
       distinct: 237,
       nulls: 0,
@@ -246,10 +264,10 @@ export const gelatoSummary = {
       max: 34.8,
       examples: [7.4, 6.8, 6.6, 8.3, 11.7],
     },
-    { name: "rain_mm", kind: "number", distinct: 107, nulls: 0, min: 0, max: 34.3, examples: [0, 1.4, 2.2, 3.4, 0.6] },
-    { name: "weather", kind: "category", distinct: 3, nulls: 0, values: ["Cloudy", "Rain", "Sunny"] },
-    { name: "school_holiday", kind: "category", distinct: 2, nulls: 0, values: ["Yes", "No"] },
-    { name: "bank_holiday", kind: "category", distinct: 2, nulls: 0, values: ["Yes", "No"] },
+    { name: "rain_mm", label: "Rainfall (mm)", kind: "number", distinct: 107, nulls: 0, min: 0, max: 34.3, examples: [0, 1.4, 2.2, 3.4, 0.6] },
+    { name: "weather", label: "Weather", kind: "category", distinct: 3, nulls: 0, values: ["Cloudy", "Rain", "Sunny"] },
+    { name: "school_holiday", label: "School holiday", kind: "category", distinct: 2, nulls: 0, values: ["Yes", "No"] },
+    { name: "bank_holiday", label: "Bank holiday", kind: "category", distinct: 2, nulls: 0, values: ["Yes", "No"] },
   ],
   sampleRows: [
     {

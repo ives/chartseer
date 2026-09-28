@@ -1,4 +1,5 @@
 import { type ColumnSummary, type DatasetSummary, MAX_LISTED_VALUES } from "@/lib/spec";
+import { type LabelMeta, columnLabel } from "./labels";
 import type { ParsedCsv } from "./parse";
 
 // One typed row: numbers as numbers, dates as ISO strings, null for an empty cell.
@@ -43,7 +44,8 @@ const KNOWN_SEQUENCES: readonly (readonly string[])[] = [
   ],
 ];
 
-export function inferDataset(parsed: ParsedCsv, meta: InferMeta = {}): InferredDataset {
+// Every column gets a label: the one in meta if given, otherwise derived from its name (D-031).
+export function inferDataset(parsed: ParsedCsv, meta: InferMeta & LabelMeta = {}): InferredDataset {
   const rows: Row[] = parsed.rows.map(() => ({}));
   const columns = parsed.columns.map((name) => {
     const cells = parsed.rows.map((row) => row[name] ?? null);
@@ -52,7 +54,7 @@ export function inferDataset(parsed: ParsedCsv, meta: InferMeta = {}): InferredD
       const row = rows[i];
       if (row) row[name] = value;
     });
-    return summary;
+    return { ...summary, label: columnLabel(name, meta) };
   });
 
   return {

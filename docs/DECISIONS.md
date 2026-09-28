@@ -228,3 +228,9 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - `prepareChartData` runs outside the measured tree and is not included.
 The gallery's per-chart readout (React `Profiler`, then the next frame plus a task) stays in place, so this can be re-measured.
 **Consequences:** One-off rendering is acceptable; resizing and the table view are sluggish. Options, not yet chosen: canvas above a point threshold (this loses per-point DOM for hover); drawing each distinct position once (the map has about 805); debouncing width changes; paginating or capping the table. Revisit before M5's responsive and accessibility pass.
+
+## D-031 · 2026-09-28 · Column labels travel in the dataset summary
+
+**Context:** The M3 system prompt should show the model readable column labels (D-025). The server doesn't know which dataset the browser loaded. Sending labels, or a dataset id, as a separate field would add to the request body.
+**Decision:** `ColumnSummary` gets an optional `label`. `inferDataset` fills it on every column: from `DatasetMeta.columnLabels` if given, otherwise `deriveLabel`, so uploaded files get labels too. The fixtures carry the bundled labels. The request body stays messages, dataset summary and current spec.
+**Consequences:** The model sees labels, so it can use them in titles, while specs keep using `name`. `label` is optional in the schema, so a hand-written summary without it is still valid. `prepareChartData` still takes labels from its `meta` argument; switching it to read the summary would be a separate change.

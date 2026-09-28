@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const columnBase = {
   name: z.string().describe("Exact column name, as used in chart specs"),
+  label: z.string().optional().describe("Readable name for display, e.g. in titles. Specs still use name."),
   distinct: z.int().min(0).describe("Number of distinct non-null values"),
   nulls: z.int().min(0).describe("Number of empty cells"),
 };

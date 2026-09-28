@@ -32,6 +32,11 @@ describe("fixtures", () => {
     expect(DatasetSummary.safeParse(summary).error).toBeUndefined();
   });
 
+  it("accepts columns without labels", () => {
+    const columns = gelatoSummary.columns.map((column) => ({ ...column, label: undefined }));
+    expect(DatasetSummary.safeParse({ ...gelatoSummary, columns }).success).toBe(true);
+  });
+
   it.each([
     ["both values and examples", { values: ["a", "b"], examples: ["a"] }],
     ["examples when it has 50 or fewer values", { examples: ["a"] }],

@@ -29,6 +29,7 @@ describe("column kinds", () => {
     const { summary, rows } = infer("n\n3\n-1.5\n\n1e2\n");
     expect(summary.columns[0]).toEqual({
       name: "n",
+      label: "N",
       kind: "number",
       distinct: 3,
       nulls: 1,
@@ -62,7 +63,7 @@ describe("column kinds", () => {
   });
 
   it("treats an all-empty column as a category with no values", () => {
-    expect(column("a,b\n,1\n,2\n")).toEqual({ name: "a", kind: "category", distinct: 0, nulls: 2, values: [] });
+    expect(column("a,b\n,1\n,2\n")).toEqual({ name: "a", label: "A", kind: "category", distinct: 0, nulls: 2, values: [] });
   });
 });
 
@@ -90,7 +91,20 @@ describe("category value order", () => {
   it("gives examples instead of values above 50 distinct", () => {
     const labels = Array.from({ length: 51 }, (_, i) => `v${i}`);
     const c = column("s\n" + [...labels, ...labels].join("\n"));
-    expect(c).toEqual({ name: "s", kind: "category", distinct: 51, nulls: 0, examples: ["v0", "v1", "v2", "v3", "v4"] });
+    expect(c).toEqual({ name: "s", label: "S", kind: "category", distinct: 51, nulls: 0, examples: ["v0", "v1", "v2", "v3", "v4"] });
+  });
+});
+
+describe("column labels", () => {
+  it("takes a label from the meta", () => {
+    expect(column("max_temp_c\n21\n", { columnLabels: { max_temp_c: "Peak temperature (°C)" } })?.label).toBe(
+      "Peak temperature (°C)",
+    );
+  });
+
+  it("derives a label for a column the meta doesn't name", () => {
+    const { summary } = infer("GDP_per_capita,b\n1,2\n", { columnLabels: { b: "Bee" } });
+    expect(summary.columns.map((c) => c.label)).toEqual(["GDP per capita", "Bee"]);
   });
 });
 
