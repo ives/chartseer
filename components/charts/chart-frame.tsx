@@ -1,10 +1,11 @@
 "use client";
 
-import { type PointerEvent, type ReactNode, type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type PointerEvent, type ReactNode, type RefObject, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ScaleBand, ScaleLinear, ScaleLogarithmic, ScalePoint, ScaleTime } from "d3-scale";
 import type { DatasetMeta } from "@/lib/data/datasets";
 import { bucketTicks, formatBuckets, isoToUtcDate } from "@/lib/data/dates";
 import type { TimeUnit } from "@/lib/spec";
+import { ChartExportContext, type ExportSize, canvasMeasure, fontFamily, wrapLines } from "./chart-export";
 import { ChartTooltip } from "./chart-tooltip";
 import type { TooltipContent } from "./tooltip-content";
 
@@ -36,8 +37,9 @@ type ChartFrameProps = {
   note?: string;
   // What the chart shows, in words, for screen readers (describeChart).
   description: string;
-  // Shown in place of the plot when the reader asks for the table.
+  // Shown in place of the plot when the reader asks for the table, or the spec.
   table: ReactNode;
+  specView: ReactNode;
   // Total SVG height in pixels, margins included.
   height: number;
   // Scales depend on the plot's size, which depends on the measured width.
@@ -57,11 +59,30 @@ const LINE_HEIGHT = 14;
 const MIN_LEFT = 32;
 const MAX_LEFT_SHARE = 0.4;
 
-export function ChartFrame({ title, subtitle, legend, dataset, note, description, table, height, axes, children, hover }: ChartFrameProps) {
+type View = "chart" | "table" | "spec";
+
+export function ChartFrame(props: ChartFrameProps) {
+  const { title, subtitle, legend, dataset, note, description, table, specView, height, axes, children, hover } = props;
+  const exporting = useContext(ChartExportContext);
   const titleId = useId();
   const descriptionId = useId();
   const [ref, width] = useElementWidth<HTMLDivElement>();
-  const [showTable, setShowTable] = useState(false);
+  const [view, setView] = useState<View>("chart");
+  const showPlot = view === "chart";
+
+  if (exporting) return <ExportFigure {...props} size={exporting} />;
+
+  // Each toggle shows its view; pressing it again goes back to the chart.
+  const toggle = (label: string, target: View) => (
+    <button
+      type="button"
+      aria-pressed={view === target}
+      onClick={() => setView((current) => (current === target ? "chart" : target))}
+      className="rounded border border-(--chart-axis) px-2 py-0.5 text-xs opacity-80 hover:opacity-100 aria-pressed:bg-(--chart-grid) aria-pressed:opacity-100"
+    >
+      {label}
+    </button>
+  );
 
   return (
     // In dark mode the panel is subtly raised; in light mode it is transparent (D-050).
@@ -77,7 +98,7 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, description
       </p>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         {/* The table's column headers name the series, so it needs no legend. */}
-        {!showTable && legend && legend.items.length > 1 ? (
+        {showPlot && legend && legend.items.length > 1 ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             {legend.title && <span className="opacity-70">{legend.title}</span>}
             <ul aria-label={legend.title ?? "Legend"} className="contents">
@@ -92,19 +113,16 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, description
         ) : (
           <span />
         )}
-        <button
-          type="button"
-          aria-pressed={showTable}
-          onClick={() => setShowTable((shown) => !shown)}
-          className="rounded border border-(--chart-axis) px-2 py-0.5 text-xs opacity-80 hover:opacity-100"
-        >
-          {showTable ? "View as chart" : "View as table"}
-        </button>
+        <div className="flex gap-2">
+          {toggle("View as table", "table")}
+          {toggle("View spec", "spec")}
+        </div>
       </div>
-      {showTable && table}
+      {view === "table" && table}
+      {view === "spec" && specView}
       {/* Hidden rather than unmounted, so its ResizeObserver stays attached. */}
-      <div ref={ref} hidden={showTable} className="relative w-full">
-        {width > 0 && !showTable && (
+      <div ref={ref} hidden={!showPlot} className="relative w-full">
+        {width > 0 && showPlot && (
           <Plot width={width} height={height} titleId={titleId} descriptionId={descriptionId} axes={axes} hover={hover}>
             {children}
           </Plot>
@@ -119,6 +137,122 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, description
   );
 }
 
+// Export layout, in pixels (D-059).
+const EXPORT = {
+  padding: 40,
+  title: { size: 32, line: 40, maxLines: 2 },
+  subtitle: { size: 18, line: 26 },
+  legend: { size: 15, line: 24, swatch: 12, gap: 6, spacing: 20 },
+  footer: { size: 13, line: 18 },
+  gap: 16,
+};
+
+// The chart as one self-contained SVG of a fixed size: title, subtitle,
+// legend, plot and footer, all as SVG text, for a download. No toggles, no
+// hover. The plot takes whatever height the text leaves.
+function ExportFigure({ title, subtitle, legend, dataset, note, description, axes, children, size }: ChartFrameProps & { size: ExportSize }) {
+  const measure = canvasMeasure();
+  const serif = fontFamily("--font-fraunces", "Georgia, serif");
+  const sans = fontFamily("--font-geist-sans", "system-ui, sans-serif");
+  const { padding, gap } = EXPORT;
+  const width = size.width - padding * 2;
+  const font = (px: number, family: string, weight = 400) => `${weight} ${px}px ${family}`;
+  const wrap = (text: string, css: string) => wrapLines(text, width, (t) => measure(t, css));
+
+  let y = padding;
+  const texts: ReactNode[] = [];
+  const line = (key: string, text: string, px: number, family: string, style: object) => {
+    texts.push(
+      <text key={key} x={padding} y={y} dominantBaseline="hanging" style={{ fontSize: px, fontFamily: family, ...style }}>
+        {text}
+      </text>,
+    );
+  };
+
+  const titleFont = font(EXPORT.title.size, serif, 600);
+  wrap(title, titleFont)
+    .slice(0, EXPORT.title.maxLines)
+    .forEach((t, i) => {
+      line(`title${i}`, t, EXPORT.title.size, serif, { fill: "var(--foreground)", fontWeight: 600, letterSpacing: "-0.01em" });
+      y += EXPORT.title.line;
+    });
+  if (subtitle) {
+    wrap(subtitle, font(EXPORT.subtitle.size, sans)).forEach((t, i) => {
+      line(`subtitle${i}`, t, EXPORT.subtitle.size, sans, { fill: "var(--chart-muted)" });
+      y += EXPORT.subtitle.line;
+    });
+  }
+
+  // Legend items flow along rows, like the interactive legend.
+  const legendNodes: ReactNode[] = [];
+  if (legend && legend.items.length > 1) {
+    y += gap / 2;
+    const { size: px, line: lineHeight, swatch, gap: swatchGap, spacing } = EXPORT.legend;
+    const css = font(px, sans);
+    let x = padding;
+    const place = (w: number) => {
+      if (x > padding && x + w > padding + width) {
+        x = padding;
+        y += lineHeight;
+      }
+      const at = x;
+      x += w + spacing;
+      return at;
+    };
+    if (legend.title) {
+      const at = place(measure(legend.title, css));
+      legendNodes.push(
+        <text key="legend-title" x={at} y={y + lineHeight / 2} dominantBaseline="central" style={{ fontSize: px, fontFamily: sans, fill: "var(--chart-muted)" }}>
+          {legend.title}
+        </text>,
+      );
+    }
+    legend.items.forEach((item, i) => {
+      const at = place(swatch + swatchGap + measure(item.label, css));
+      legendNodes.push(
+        <g key={`legend${i}`}>
+          <rect x={at} y={y + (lineHeight - swatch) / 2} width={swatch} height={swatch} rx={2} style={{ fill: item.color }} />
+          <text x={at + swatch + swatchGap} y={y + lineHeight / 2} dominantBaseline="central" style={{ fontSize: px, fontFamily: sans, fill: "var(--foreground)" }}>
+            {item.label}
+          </text>
+        </g>,
+      );
+    });
+    y += lineHeight;
+  }
+  const plotTop = y + gap;
+
+  // The footer is laid out from the bottom up.
+  const footerCss = font(EXPORT.footer.size, sans);
+  const footerLines = [note, dataset.attribution, dataset.note].filter((t): t is string => Boolean(t)).flatMap((t) => wrap(t, footerCss));
+  const footerTop = size.height - padding - footerLines.length * EXPORT.footer.line;
+  const plotHeight = Math.max(120, footerTop - gap - plotTop);
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`}>
+      <title>{title}</title>
+      <desc>{description}</desc>
+      <rect width={size.width} height={size.height} style={{ fill: "var(--background)" }} />
+      {texts}
+      {legendNodes}
+      <Plot width={width} height={plotHeight} axes={axes} at={{ x: padding, y: plotTop }}>
+        {children}
+      </Plot>
+      {footerLines.map((t, i) => (
+        <text
+          key={`footer${i}`}
+          x={padding}
+          y={footerTop + i * EXPORT.footer.line}
+          dominantBaseline="hanging"
+          style={{ fontSize: EXPORT.footer.size, fontFamily: sans, fill: "var(--chart-muted)" }}
+        >
+          {t}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
 function Plot({
   width,
   height,
@@ -127,7 +261,14 @@ function Plot({
   axes,
   children,
   hover,
-}: Pick<ChartFrameProps, "height" | "axes" | "children" | "hover"> & { width: number; titleId: string; descriptionId: string }) {
+  at,
+}: Pick<ChartFrameProps, "height" | "axes" | "children" | "hover"> & {
+  width: number;
+  titleId?: string;
+  descriptionId?: string;
+  // Where the plot sits inside an exported SVG; the figure's own SVG otherwise.
+  at?: { x: number; y: number };
+}) {
   // Memoised on the size and the renderer's props, so a pointer move redraws
   // only the hover marker and the tooltip, not every mark.
   const { left, maxChars, inner, scales, xTicks, yTicks } = useMemo(() => {
@@ -154,7 +295,12 @@ function Plot({
 
   return (
     <>
-    <svg width={width} height={height} role="img" aria-labelledby={titleId} aria-describedby={descriptionId} className="block overflow-visible text-xs">
+    <svg
+      width={width}
+      height={height}
+      {...(at ? { x: at.x, y: at.y } : { role: "img", "aria-labelledby": titleId, "aria-describedby": descriptionId })}
+      className="block overflow-visible text-xs"
+    >
       <g transform={`translate(${left},${MARGIN.top})`}>
         {isGridded(scales.y) &&
           yTicks.map((t) => (

@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
-:root {
+/* The light theme. [data-chart-export] redeclares it on one subtree, so a
+   download is drawn light even when the page is dark (D-059). */
+:root,
+[data-chart-export] {
   /* Native controls, such as the dataset select, follow the theme. */
   color-scheme: light;
   --background: #ffffff;

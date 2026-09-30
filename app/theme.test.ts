@@ -29,3 +29,9 @@ describe("the dark theme", () => {
     expect(forced).toEqual(system);
   });
 });
+
+describe("the light theme", () => {
+  it("can be applied to one subtree, so downloads are light on a dark page", () => {
+    expect(css).toMatch(/:root,\s*\[data-chart-export\] \{\s*\/\*[^*]*\*\/\s*color-scheme: light;/);
+  });
+});

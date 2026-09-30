@@ -18,6 +18,7 @@ type BarChartProps = {
   dataset: DatasetMeta;
   description: string;
   table: ReactNode;
+  specView: ReactNode;
 };
 
 // One drawn bar or stacked segment, in data units along the value axis.
@@ -31,7 +32,7 @@ const FRAME_ROWS_EXTRA = 80; // The frame's top and bottom margins, plus a littl
 const MAX_THICKNESS = 24;
 const GAP = 2; // Surface gap between touching bars and stacked segments.
 
-export function BarChart({ spec, data, dataset, description, table }: BarChartProps) {
+export function BarChart({ spec, data, dataset, description, table, specView }: BarChartProps) {
   const horizontal = spec.orientation === "horizontal";
   const stacked = spec.layout === "stacked" && data.series.length > 1;
   const categories = data.x.values.map(String);
@@ -67,6 +68,7 @@ export function BarChart({ spec, data, dataset, description, table }: BarChartPr
       note={partialNote(data, "Lighter")}
       description={description}
       table={table}
+      specView={specView}
       height={height}
       axes={axes}
       hover={(pointer, scales) => {

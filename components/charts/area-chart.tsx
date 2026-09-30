@@ -19,6 +19,7 @@ type AreaChartProps = {
   dataset: DatasetMeta;
   description: string;
   table: ReactNode;
+  specView: ReactNode;
 };
 
 // One layer of the chart: its bottom and top edge at each x value, in data units.
@@ -26,7 +27,7 @@ type Layer = { lower: (number | null)[]; upper: (number | null)[] };
 
 const HEIGHT = 360;
 
-export function AreaChart({ spec, data, dataset, description, table }: AreaChartProps) {
+export function AreaChart({ spec, data, dataset, description, table, specView }: AreaChartProps) {
   const stacked = spec.stacked === true && data.series.length > 1;
   const layers = stacked ? stackLayers(data) : data.series.map((s) => ({ lower: s.values.map(() => 0), upper: s.values }));
   const domain = valueDomain(layers.flatMap((l) => [...l.lower, ...l.upper]));
@@ -49,6 +50,7 @@ export function AreaChart({ spec, data, dataset, description, table }: AreaChart
       note={partialNote(data, stacked ? "Lighter" : "Dashed")}
       description={description}
       table={table}
+      specView={specView}
       height={HEIGHT}
       axes={axes}
       hover={(pointer, { x, y }, inner) =>

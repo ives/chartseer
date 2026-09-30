@@ -129,6 +129,20 @@ describe("ChartArea", () => {
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 
+  it("offers downloads for a drawn chart only", () => {
+    const { rerender } = render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} {...ask} steps={steps} />);
+    expect(screen.queryByRole("button", { name: /^Download/ })).toBeNull();
+
+    rerender(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
+    expect(screen.getByRole("button", { name: "Download SVG" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download PNG" })).toBeTruthy();
+
+    // Nothing to download when the chart has nothing to draw.
+    const empty = { kind: "no-values", message: "Nothing to plot." } as const;
+    rerender(<ChartArea pending={false} chart={{ ...chart, empty }} dataset={datasets.gelato} {...ask} steps={steps} />);
+    expect(screen.queryByRole("button", { name: /^Download/ })).toBeNull();
+  });
+
   it("announces the step, even while drawing", () => {
     const announced = { ...steps, announcement: "Showing chart 1 of 2: Scoops by day" };
     const { rerender } = render(
@@ -147,6 +161,8 @@ describe("ChartArea", () => {
     const drawn = render(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
     expect(await axeViolations(drawn.container)).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    expect(await axeViolations(drawn.container)).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "View spec" }));
     expect(await axeViolations(drawn.container)).toEqual([]);
     cleanup();
 

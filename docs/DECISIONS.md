@@ -570,3 +570,31 @@ It's read through `readCsv` and `inferDataset` with no meta, exactly as an uploa
 - **Fixed:** the chat placeholder used the browser default (about 3.4:1) and now uses `--muted`.
 - **In the test suite:** `axe-core` as a dev dependency, run directly with `axe.run` in `studio.test.tsx` (the first screen and workspace) and `chart-area.test.tsx` (no chart, a chart, the table view and the empty state). Colour contrast is off there, as jsdom lays nothing out. `vitest-axe` was not added, as it only supplies a matcher and hasn't been maintained since 0.1.0.
 **Consequences:** A missing label or a broken ARIA attribute fails `pnpm test`; a test run with the dataset picker's label removed failed as expected. Contrast needs the browser check whenever a colour changes. A VoiceOver pass by a person is still worthwhile; it was not run here.
+
+## D-058 · 2026-09-30 · View spec
+
+**Context:** The spec is the whole contract between the model and the charts, but a user couldn't see it. It was on the scope fence's "Maybe" list.
+**Decision:**
+- `ChartFrame`'s table toggle becomes a three-way view (chart, table, spec). "View as table" and "View spec" sit side by side with fixed labels and `aria-pressed`, and pressing the active one returns to the chart. The labels no longer flip to "View as chart", since a pressed toggle shouldn't also change its name.
+- `ChartSpecView` shows `JSON.stringify(spec, null, 2)`, the validated spec exactly as the chart uses it. It is in a `<pre>` that is a labelled, focusable region, so a keyboard can scroll it.
+- Copy uses `navigator.clipboard.writeText`. A status line says "Copied", or suggests selecting the text if the clipboard is refused.
+- `ChartView` builds it next to the table and passes it through the renderers to the frame, as it does the table.
+**Consequences:** The spec shown is the parsed one, with defaults as the chart applies them, not the model's raw tool input. Read-only by design: editing the spec by hand would be a second way to make charts, outside the scope fence.
+
+## D-059 · 2026-09-30 · SVG and PNG downloads
+
+**Context:** Downloads must always be light-themed, at a fixed 1200×675, with the title, subtitle and attribution. In the page, those are HTML around an SVG plot, colours are CSS variables, fonts come from `next/font`, and the theme can only be forced for the whole page (D-049). No new packages.
+**Decision:**
+- **Export mode in `ChartFrame`.** Under `ChartExportContext`, `ChartFrame` draws one self-contained `<svg>` instead of the figure:
+  - a background, the title (Fraunces 32px, up to two lines), the subtitle, the legend (wrapped rows), the plot and the footer lines (chart note, attribution, dataset note), all as SVG;
+  - the plot takes whatever height the text leaves, so a 20-row horizontal bar chart compresses to fit;
+  - `<title>` and `<desc>` carry the title and `describeChart`'s description;
+  - no toggles, hover layer or tooltip.
+  - Text wraps with `wrapLines`, measured on a canvas. Renderers didn't change.
+- **Light on one subtree.** The light block's selector is `:root, [data-chart-export]`, so an element with that attribute redeclares the light tokens over the page's dark ones. The chart is drawn with `createRoot` and `flushSync` into an off-screen, `inert`, `aria-hidden` container with the attribute, then removed. The page never changes theme.
+- **A standalone file.** The SVG is cloned with each element's computed fill, stroke, opacity and font written inline. Classes, `data-*` attributes and `var()` are gone.
+- **Embedded fonts.** The `@font-face` rules for the families the text uses are embedded, with the woff2 files as data URLs. Only subsets whose `unicode-range` covers characters in the file are kept: on the demo charts, Latin Geist and Latin Fraunces. Without them, the PNG would fall back to system fonts, since an SVG drawn as an image can't load the page's fonts.
+- **Sizes measured:** SVG files are 147–158 KB, most of it the two fonts. Embedding every subset made them 317 KB. PNG files are 92–98 KB.
+- **PNG** comes from drawing that SVG on a 1200×675 canvas. It has no external references, so the canvas isn't tainted. It is 1x as specified; 2x would be a change to the canvas size.
+- **Buttons.** "Download SVG" and "Download PNG" sit in `ChartArea`'s toolbar beside Undo and Redo, only when a chart is drawn. Putting them in `components/charts` would have made an import cycle, since the exporter renders `ChartView`, and would have added them to the gallery. Filenames are the slugified title.
+**Consequences:** Checked in Chrome with the page dark: a line chart and a 20-row horizontal bar chart (with the long bikes attribution) come out light, 1200×675, in Fraunces and Geist, with nothing clipped. `wrapLines`, `downloadName`, `unicodeRanges` and the export layout are unit-tested. The exporter's rendering and rasterising needs a real browser, so it isn't.

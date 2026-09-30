@@ -13,12 +13,13 @@ type ScatterChartProps = {
   dataset: DatasetMeta;
   description: string;
   table: ReactNode;
+  specView: ReactNode;
 };
 
 const HEIGHT = 400;
 const RADIUS = 4;
 
-export function ScatterChart({ spec, data, dataset, description, table }: ScatterChartProps) {
+export function ScatterChart({ spec, data, dataset, description, table, specView }: ScatterChartProps) {
   const points = data.groups.flatMap((g) => g.points);
   const xDomain = extent(points.map((p) => p.x), spec.x.scale);
   const yDomain = extent(points.map((p) => p.y), spec.y.scale);
@@ -39,6 +40,7 @@ export function ScatterChart({ spec, data, dataset, description, table }: Scatte
       dataset={dataset}
       description={description}
       table={table}
+      specView={specView}
       height={HEIGHT}
       axes={axes}
       hover={(pointer, { x, y }) => {

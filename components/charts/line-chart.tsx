@@ -18,11 +18,12 @@ type LineChartProps = {
   dataset: DatasetMeta;
   description: string;
   table: ReactNode;
+  specView: ReactNode;
 };
 
 const HEIGHT = 360;
 
-export function LineChart({ spec, data, dataset, description, table }: LineChartProps) {
+export function LineChart({ spec, data, dataset, description, table, specView }: LineChartProps) {
   const axes = (inner: Inner): Axes => ({
     x: xAxis(data, inner.width),
     y: {
@@ -48,6 +49,7 @@ export function LineChart({ spec, data, dataset, description, table }: LineChart
       note={partialNote(data, "Dashed")}
       description={description}
       table={table}
+      specView={specView}
       height={HEIGHT}
       axes={axes}
       hover={(pointer, { x, y }, inner) =>

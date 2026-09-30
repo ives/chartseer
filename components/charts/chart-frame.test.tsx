@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { scaleBand, scaleLinear } from "d3-scale";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { datasets } from "@/lib/data/datasets";
+import { ChartExportContext, EXPORT_SIZE } from "./chart-export";
 import { type Axes, ChartFrame, type Inner, type LegendItem } from "./chart-frame";
 
 const axes = (inner: Inner): Axes => ({
@@ -11,7 +12,11 @@ const axes = (inner: Inner): Axes => ({
 });
 
 function renderFrame(props: { subtitle?: string; legend?: LegendItem[]; dataset?: keyof typeof datasets }) {
-  return render(
+  return render(frame(props));
+}
+
+function frame(props: { subtitle?: string; legend?: LegendItem[]; dataset?: keyof typeof datasets }) {
+  return (
     <ChartFrame
       title="Scoops by shop"
       subtitle={props.subtitle}
@@ -19,11 +24,12 @@ function renderFrame(props: { subtitle?: string; legend?: LegendItem[]; dataset?
       dataset={datasets[props.dataset ?? "gelato"]}
       description="Bar chart of Scoops by Shop."
       table={<table aria-label="Scoops table" />}
+      specView={<pre aria-label="Scoops spec">{"{}"}</pre>}
       height={300}
       axes={axes}
     >
       {() => null}
-    </ChartFrame>,
+    </ChartFrame>
   );
 }
 
@@ -41,6 +47,7 @@ describe("ChartFrame", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("shows the title and subtitle", () => {
@@ -90,9 +97,53 @@ describe("ChartFrame", () => {
     // The attribution stays with the data, whichever way it is shown.
     expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "View as chart" }));
+    fireEvent.click(button);
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.getByRole("list", { name: "flavour" })).toBeTruthy();
+  });
+
+  it("swaps the plot for the spec, and from the spec to the table", () => {
+    renderFrame({});
+    const spec = screen.getByRole("button", { name: "View spec" });
+    const table = screen.getByRole("button", { name: "View as table" });
+    fireEvent.click(spec);
+    expect(screen.getByLabelText("Scoops spec")).toBeTruthy();
+    expect(spec.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
+
+    fireEvent.click(table);
+    expect(screen.queryByLabelText("Scoops spec")).toBeNull();
+    expect(screen.getByRole("table", { name: "Scoops table" })).toBeTruthy();
+    expect(spec.getAttribute("aria-pressed")).toBe("false");
+    expect(table.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("draws one self-contained SVG of the export size when exporting", () => {
+    // jsdom has no canvas; text is then measured by an estimate.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const { container } = render(
+      <ChartExportContext value={EXPORT_SIZE}>
+        {frame({
+          subtitle: "2025",
+          dataset: "bikes",
+          legend: [
+            { label: "Pistachio", color: "var(--chart-1)" },
+            { label: "Stracciatella", color: "var(--chart-2)" },
+          ],
+        })}
+      </ChartExportContext>,
+    );
+    const svg = container.firstElementChild;
+    expect(svg?.tagName).toBe("svg");
+    expect(svg?.getAttribute("width")).toBe("1200");
+    expect(svg?.getAttribute("height")).toBe("675");
+    const text = svg?.textContent ?? "";
+    for (const expected of ["Scoops by shop", "2025", "flavour", "Pistachio", "Stracciatella", "Powered by TfL Open Data", "1 in 30.8"]) {
+      expect(text).toContain(expected);
+    }
+    expect(screen.queryAllByRole("button")).toEqual([]);
+    // The plot is drawn inside, below the text.
+    expect(svg?.querySelectorAll("svg").length).toBe(1);
   });
 
   it("shows the attribution without a note when the dataset has none", () => {

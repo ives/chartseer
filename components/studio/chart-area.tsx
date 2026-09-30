@@ -2,6 +2,7 @@ import { Chart } from "@/components/charts/chart";
 import type { DatasetMeta } from "@/lib/data/datasets";
 import type { EmptyChart } from "@/lib/data/empty";
 import { Attribution } from "./attribution";
+import { DownloadButtons } from "./download-buttons";
 import type { ChartData } from "@/lib/data/prepare";
 import type { ChartSpec } from "@/lib/spec";
 
@@ -46,7 +47,8 @@ export function ChartArea({ pending, chart, dataset, starters, canAsk, onAsk, st
         </div>
       ) : chart ? (
         <div className="flex flex-col gap-2">
-          <div className="flex justify-end gap-2 text-sm">
+          <div className="flex flex-wrap justify-end gap-2 text-sm">
+            {!chart.empty && <DownloadButtons chart={chart} className={BUTTON} />}
             <button
               type="button"
               disabled={!steps.canUndo}

@@ -173,15 +173,16 @@ All errors are collected, not just the first. A check that needs a missing colum
 - All text meets WCAG AA contrast in both themes. The page has one `h1`, the wordmark; chart titles and screen titles are `h2`.
 - A newly drawn chart is announced by the chat's status line, and an undo or redo by the chart area's, so each change is read out once.
 - axe runs in the test suite (without colour contrast, which jsdom can't measure) and by hand in the browser on every screen, in both themes (D-057).
+- Every chart has a "View spec" toggle beside "View as table": the spec as read-only JSON in a focusable, scrollable region, with a Copy button whose result is announced (D-058).
 - Layout: chart and chat side by side from 768 px; below that the page scrolls, chart first, with the chat input pinned to the bottom of the screen (D-055).
 
 ## 11. Scope fence
 
-**In v1:** CSV upload (≤ 5 MB) plus two bundled demo datasets; column inference; four chart types (line, area, bar, scatter); chat-based creation and refinement; streaming; undo via spec history; dark mode; accessibility as above; rate-limited public demo.
+**In v1:** CSV upload (≤ 5 MB) plus two bundled demo datasets; column inference; four chart types (line, area, bar, scatter); chat-based creation and refinement; streaming; undo via spec history; dark mode; accessibility as above; a read-only "view spec" toggle (D-058); SVG and PNG download (D-059); rate-limited public demo.
 
 **Not in v1:** user accounts; a database; saved or shared projects; Excel files; multiple datasets or joins; collaboration; model-chosen styling; any model-generated code.
 
-**Maybe, if time allows:** SVG/PNG export; a "view spec" toggle showing the JSON; shareable links that encode the spec in the URL (no database needed); a fifth chart type.
+**Maybe, if time allows:** shareable links that encode the spec in the URL (no database needed); a fifth chart type.
 
 ## 12. Testing
 
@@ -206,6 +207,6 @@ All errors are collected, not just the first. A check that needs a missing colum
 - ~~Is one validation retry enough?~~ Settled: yes. The prompt check found every spec valid first time, and no retry was needed in 24 cases (D-037).
 - ~~**Tool schema size.**~~ Settled: the schema is 7,561 tokens, about 74% of the cached prefix. 94% of input tokens are read from cache, so it costs little per turn and is left as it is (D-038).
 - ~~**Attribution and sampling are the app's job.**~~ Settled: the chart frame, both empty states and the first screen show the attribution and the bike sample ratio (1 in 30.8), never left to the model's subtitles (D-045).
-- ~~**Dark mode (M5).**~~ Settled: charts follow the page theme, on a subtly raised panel in dark mode, with fainter gridlines in both (D-050). Any future export or download is always light-themed; `data-theme` can force it (D-049).
+- ~~**Dark mode (M5).**~~ Settled: charts follow the page theme, on a subtly raised panel in dark mode, with fainter gridlines in both (D-050). Downloads are always light-themed: `[data-chart-export]` applies the light tokens to the off-screen subtree they are drawn in, so the page never changes (D-059).
 - **Gaps on time axes.** A missing day or period inside the range (Christmas Day on a daily gelato line) is joined across, not shown as a gap. Gap-filling buckets when `x.timeUnit` is set would fix it (D-051).
 - ~~**Locale formats in uploads.**~~ Settled: comma thousands, £/$/€ and % are read as numbers, and slash dates are read day- or month-first per column, with a switch when a column is ambiguous. Decimal commas are not supported (D-042).
