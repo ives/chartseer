@@ -342,7 +342,7 @@ The schema is about 74% of gelato's cached prefix of about 10,200 tokens, and ab
 
 **Context:** M4 brings uploads into the UI (ARCHITECTURE §11). A file from a user can be anything, and the lenient `parseCsv` used for the bundled files silently drops extra cells and leaves missing ones empty.
 **Decision:**
-- **Where:** an "Upload CSV" button beside the dataset picker, and drag and drop anywhere on the page. The file is read and parsed in the browser (D-005). The privacy note sits under the header controls and on the drop overlay.
+- **Where:** an "Upload Own CSV" button beside the dataset picker, and drag and drop anywhere on the page. The file is read and parsed in the browser (D-005). The privacy note sits under the header controls and on the drop overlay.
 - **Checks before reading** (`checkFile` in `lib/data/upload.ts`): the name must end in `.csv`, because MIME types vary too much by OS to rely on; and the size must be at most 5 MB. The size in the message is rounded up, so a file just over the limit never reads as "5.0 MB".
 - **Reading** (`readCsv` in `lib/data/parse.ts`):
   - Strips a UTF-8 byte-order mark.
@@ -372,3 +372,10 @@ The schema is about 74% of gelato's cached prefix of about 10,200 tokens, and ab
 - **The switch:** when any column is ambiguous, "Dates read as day/month · switch" appears beside the dataset name. The switch flips every ambiguous column at once, since a file uses one convention; columns whose order is known are unaffected.
   - Switching re-infers the file but **keeps the conversation**: the data changed, not the question, and the current chart redraws from the re-read rows.
 **Consequences:** Two-digit years, dates with times (`24/09/2026 14:30`), other separators (`24.09.2026`, `24-09-2026`) and accounting negatives (`(5)`) are still categories. The ambiguity flag is kept out of `DatasetSummary`, so nothing changes for the model or `/api/chat`.
+
+## D-043 · 2026-09-30 · Vercel Web Analytics
+
+**Context:** The app is deployed on Vercel (M0), and we want to see page views on the public demo.
+**Decision:** Add `@vercel/analytics` and render its `<Analytics />` component once, in `app/layout.tsx`. It's first-party to the host, needs no configuration in code, and does nothing in development.
+**Consequences:** Web Analytics must be enabled for the project in the Vercel dashboard before any data appears. It records page views, not what users type or upload: file contents never leave the browser, as the privacy note says (D-005, D-041).
+

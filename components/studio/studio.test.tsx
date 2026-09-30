@@ -8,7 +8,7 @@ function csvFile(text: string, name = "sales.csv") {
 }
 
 function upload(file: File) {
-  fireEvent.change(screen.getByLabelText("Upload CSV"), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText("Upload Own CSV"), { target: { files: [file] } });
 }
 
 describe("Studio uploads", () => {

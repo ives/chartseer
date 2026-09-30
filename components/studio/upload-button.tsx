@@ -24,7 +24,7 @@ export function UploadButton({ onFile }: { onFile: (file: File) => void }) {
         htmlFor={id}
         className="cursor-pointer rounded-md border border-border px-2 py-1 peer-focus-visible:outline-2 peer-focus-visible:outline-foreground"
       >
-        Upload CSV
+        Upload Own CSV
       </label>
     </div>
   );
