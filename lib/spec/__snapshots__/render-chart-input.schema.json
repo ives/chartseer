@@ -14,7 +14,7 @@
             },
             "title": {
               "type": "string",
-              "description": "States what the chart shows, in plain words"
+              "description": "Describe what is plotted, not what it reveals, e.g. 'Weekly scoops by shop, 2025'"
             },
             "subtitle": {
               "description": "Extra context: units, date range, data caveats",
@@ -291,7 +291,7 @@
             },
             "title": {
               "type": "string",
-              "description": "States what the chart shows, in plain words"
+              "description": "Describe what is plotted, not what it reveals, e.g. 'Weekly scoops by shop, 2025'"
             },
             "subtitle": {
               "description": "Extra context: units, date range, data caveats",
@@ -572,7 +572,7 @@
             },
             "title": {
               "type": "string",
-              "description": "States what the chart shows, in plain words"
+              "description": "Describe what is plotted, not what it reveals, e.g. 'Weekly scoops by shop, 2025'"
             },
             "subtitle": {
               "description": "Extra context: units, date range, data caveats",
@@ -880,7 +880,7 @@
             },
             "title": {
               "type": "string",
-              "description": "States what the chart shows, in plain words"
+              "description": "Describe what is plotted, not what it reveals, e.g. 'Weekly scoops by shop, 2025'"
             },
             "subtitle": {
               "description": "Extra context: units, date range, data caveats",

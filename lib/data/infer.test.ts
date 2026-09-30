@@ -88,10 +88,10 @@ describe("category value order", () => {
     });
   });
 
-  it("gives examples instead of values above 50 distinct", () => {
-    const labels = Array.from({ length: 51 }, (_, i) => `v${i}`);
+  it("gives examples instead of values above 200 distinct", () => {
+    const labels = Array.from({ length: 201 }, (_, i) => `v${i}`);
     const c = column("s\n" + [...labels, ...labels].join("\n"));
-    expect(c).toEqual({ name: "s", label: "S", kind: "category", distinct: 51, nulls: 0, examples: ["v0", "v1", "v2", "v3", "v4"] });
+    expect(c).toEqual({ name: "s", label: "S", kind: "category", distinct: 201, nulls: 0, examples: ["v0", "v1", "v2", "v3", "v4"] });
   });
 });
 

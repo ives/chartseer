@@ -137,7 +137,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - CSV is parsed **in the browser** and kept in memory. No upload to a server, no storage.
 - File size limit: 5 MB.
-- Column inference produces a summary per column (`lib/spec/columns.ts`): `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, and up to 5 example values. A category column with 50 or fewer distinct values lists **all** of them instead, in natural order: calendar order for weekdays, months and seasons, otherwise the order of first appearance in the file (D-015).
+- Column inference produces a summary per column (`lib/spec/columns.ts`): `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, and up to 5 example values. A category column with 200 or fewer distinct values lists **all** of them instead, in natural order: calendar order for weekdays, months and seasons, otherwise the order of first appearance in the file (D-015, D-039).
 - The model receives the summary, the row count and at most 10 sample rows — never the full dataset.
 - `prepareChartData(rows, dataset, spec)` is the one pure pipeline from typed rows to chart-ready data: **filter → bucket → group and aggregate → sort → limit → shape** (D-021). Renderers never transform data themselves.
 - **Time buckets** (D-026). With `x.timeUnit`, each date moves to the first day of its day, week, month, quarter or year before grouping. Weeks start on Monday, and everything is in UTC. Filters run first, on the raw dates. Annotation dates move to the start of their bucket too. Tick labels name the period and show the year on the first tick and wherever it changes ("30 Dec 2024", "6 Jan"; "Jan 2025", "Feb").
@@ -175,7 +175,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - **`lib/`:** Vitest unit tests for schema, validation, inference and `prepareChartData`. A test asserts that every example spec passes both validation layers.
 - **Charts:** React Testing Library for structure and accessible text, not pixels. Visual checks happen on a dev-only gallery page that renders every example spec.
-- **The model:** no live model calls in the test suite. `pnpm check-prompts`, run by hand, sends 24 requests through `lib/ai` against the demo data and reports how many produce valid specs first time, with tokens and response times. Full results go to `scripts/reports/` (git-ignored). Results in D-037.
+- **The model:** no live model calls in the test suite. `pnpm check-prompts`, run by hand, sends 24 requests through `lib/ai` against the demo data and reports how many produce valid specs first time, with tokens and response times. Full results go to `scripts/reports/` (git-ignored). Results in D-037 and D-040.
 
 ## 13. Milestones
 

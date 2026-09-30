@@ -45,6 +45,11 @@ describe("nearest-match suggestions", () => {
     ]);
   });
 
+  it("checks a column with more than 50 values", () => {
+    const sohoo: ChartSpec = { ...areaBar, x: { field: "hour" }, filters: [{ field: "start_area", op: "eq", value: "Sohoo" }] };
+    expect(validateSpec(sohoo, bikesSummary)).toEqual([expect.stringContaining('Did you mean "Soho"?')]);
+  });
+
   it("lists the values without a suggestion when nothing is close", () => {
     const [error] = validateSpec(flavourFilter("Vanilla"), gelatoSummary);
     expect(error).toContain('"Vanilla" is not a value of "flavour". Values: "Pistachio"');

@@ -98,6 +98,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 **Context:** Semantic validation has to catch a misspelt filter value such as "Amalfi Lemno", and the model can only spell values it has seen. Five examples cover some columns completely (`shop`) and others only partly (`flavour` has 7 values).
 **Decision:** A category column with 50 or fewer distinct values carries every value in `values`; above that it carries up to 5 `examples`, never both. 50 matches the most categories a bar chart can show, so a column has a full list exactly when it can be charted without `limit`. Values are in natural order: calendar order for weekdays, months and seasons, otherwise first appearance in the file. First appearance alone isn't enough — the bikes file starts on a Friday, so its weekdays would read Fri … Thu.
 **Consequences:** Filter and annotation values on these columns are checked exactly, with a nearest-match suggestion, and the model sees the order the chart will use. The summary sent to the model grows by at most 50 short strings per column. Column inference (M2) has to implement the ordering rule; the fixtures follow it by hand until then.
+*The 50 threshold is superseded by D-039: 200 values.*
 
 ## D-016 · 2026-09-24 · Demo datasets
 
@@ -122,6 +123,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 **Context:** `inferDataset` has to choose each column's kind from its text alone, with no settings for the user to fill in.
 **Decision:** A column is `number` if every non-empty cell is a plain decimal (optionally with an exponent), `date` if every one is an ISO 8601 date or date-time that exists on the calendar, otherwise `category` — unless it has more than 50 distinct values (`MAX_LISTED_VALUES`) and more than half its non-empty cells are distinct, which makes it `text`. The 50 floor keeps small files' columns as categories: in a 10-row file almost every column is mostly unique. Dates stay as their original ISO strings. Thousands separators, currency symbols, decimal commas and non-ISO dates (`24/09/2026`) are not recognised: they are ambiguous across locales, both bundled files are clean, and a wrong guess is worse than a category. Category order is the dataset's own `columnOrder` first, then a known sequence (weekdays, months) when every value belongs to it, then first appearance (D-015). Seasons have no built-in sequence; bikes sets theirs in `lib/data/datasets.ts`.
 **Consequences:** A station name repeated across 25,000 hires is a category (805 distinct); a column of free-text notes is text. Uploaded files with locale-formatted numbers or dates come through as categories until a real case justifies more parsing.
+*The text floor is now `TEXT_MIN_DISTINCT` in `lib/data/infer.ts`, still 50; `MAX_LISTED_VALUES` rose to 200 (D-039).*
 
 ## D-020 · 2026-09-24 · Chart components may import types from `lib/data`
 
@@ -286,8 +288,8 @@ The gallery's per-chart readout (React `Profiler`, then the next frame plus a ta
 - **Response time:** median 2.7 s, p90 3.9 s.
 **Answer:** one retry is enough. It wasn't needed once in 24 cases, and a second would add latency for no measured gain. Re-run the check after any change to the rules, the schema descriptions or the model.
 **Consequences:** The explanation step after two failures is still untested live, so D-032's caveat stands. Follow-ups, not made here:
-- A category column with more than 50 values shows the model only 5 examples, and validation can't check filter values against it. "Sohoo" worked only because Soho was one of the examples; a typo of any other bike area would pass validation and draw an empty chart. M4's empty states should cover a filter that matches no rows.
-- Several example specs in `lib/spec/examples.ts` have titles that state findings, and the schema's `title` description says "States what the chart shows". Both contradict the prompt's rule. The model followed the prompt in every case here.
+- A category column with more than 50 values shows the model only 5 examples, and validation can't check filter values against it. "Sohoo" worked only because Soho was one of the examples; a typo of any other bike area would pass validation and draw an empty chart. M4's empty states should cover a filter that matches no rows. *Addressed by D-039.*
+- Several example specs in `lib/spec/examples.ts` have titles that state findings, and the schema's `title` description says "States what the chart shows". Both contradict the prompt's rule. The model followed the prompt in every case here. *Addressed by D-040.*
 
 ## D-038 · 2026-09-30 · Tool schema size and caching, measured
 
@@ -309,3 +311,28 @@ The schema is about 74% of gelato's cached prefix of about 10,200 tokens, and ab
 - An uncached first call took 2.7 s against a median of 2.7 s overall, so latency isn't affected either.
 - Trimming descriptions would risk the 100% first-time validity measured in D-037 for a small saving.
 **Consequences:** Revisit if traffic is so sparse that most requests miss the five-minute cache, which M6's cost figures will show, or if the schema grows. `lib/ai/tools.ts` exports `RENDER_CHART_SCHEMA` and `RENDER_CHART_DESCRIPTION`, so `pnpm check-prompts` counts exactly what the model is sent.
+
+## D-039 · 2026-09-30 · Full value lists up to 200
+
+**Context:** D-037 found that the bikes area columns (`start_area`, `end_area`, 126 values each) showed the model only 5 examples, so validation couldn't check filter values on them. A typo such as "Sohoo" would pass and draw an empty chart. D-015 tied the list threshold to the bar chart's 50-category limit.
+**Decision:** `MAX_LISTED_VALUES` rises from 50 to 200. A category column with 200 or fewer distinct values lists them all, which covers both area columns. The stations (805 and 806) keep their examples. Nothing else changes:
+- The bar chart's 50-category limit (`MAX_BAR_CATEGORIES`) is separate and stays at 50. A listed column can now have more values than a bar chart shows, and the existing "Add limit" message covers that.
+- The text floor in column inference (D-019) stays at 50, as its own constant `TEXT_MIN_DISTINCT`. Raising it with the list would turn a mostly unique notes column of 51–200 values into a category that lists every note.
+**Consequences:**
+- A misspelt area in a filter or annotation is now rejected with a nearest-match suggestion, and the model can spell areas it has seen.
+- Measured with `count_tokens`, the bikes dataset summary grew from 3,368 to 4,908 tokens (+1,540, +46%). It sits in the cached prefix (D-033), so it's billed at about a tenth of the normal rate after the first turn. Gelato is unchanged at 2,215.
+- A rejected value's error message lists every value, up to 200 of them. This costs tokens only on a retry.
+- The full lists show data quirks the examples hid: TfL's `The Regent's Park_OLD` and `Liverpool Street_OLD` are areas in their own right.
+
+## D-040 · 2026-09-30 · Titles describe what is plotted; prompt checks re-run
+
+**Context:** D-037 found that the schema's `title` description ("States what the chart shows") and several example titles stated findings, which contradicts the prompt rule. The model has seen only a summary, so a finding in a title is a guess.
+**Decision:** The `title` description now reads "Describe what is plotted, not what it reveals, e.g. 'Weekly scoops by shop, 2025'". Example titles that stated a finding or asked a question are rewritten as plain descriptions: "Classic bikes carry most hires at every hour" is now "Journeys by hour of day and bike type". So is the one subtitle that stated a finding (gelato scoops by weekday).
+**Re-run** (2026-09-30, `claude-sonnet-5`, after this change and D-039):
+- **Validity:** all 21 cases that drew a chart were valid first time, with no retries or failures, and all 24 expectations were met, as in D-037.
+- **Titles:** every title described what was plotted; none stated a finding.
+- **Misspellings:** "Sohoo" became Soho and "Amalfi Lemno" became Amalfi Lemon, both corrected by the model on the first try.
+- **One outcome changed:** "Just the summer" on the bikes top-areas chart, which runs January to May, now draws a chart filtered to spring, titled "…, Spring 2026", where D-037 got prose. It's allowed ("either"), and the reply said so first: there is no summer data, so it shows spring, the closest season.
+- **Tokens:** the tool schema grew from 7,561 to 7,661, because the longer title description appears once per chart type. The bikes dataset summary grew from 3,368 to 4,908 (D-039). 94% of input tokens were cache reads.
+- **Response time:** median 2.8 s, p90 3.9 s.
+**Consequences:** D-032's caveat stands, narrowed. The two-failures-then-prose path is covered by a mock-model test (`lib/ai/chat.test.ts`, "allows only prose after the retry fails"), which checks three calls, `toolChoice: "none"` on the last, and the prose reply. No live case has failed twice yet, so the wording of that explanation is still unmeasured.

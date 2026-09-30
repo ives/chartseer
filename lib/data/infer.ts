@@ -18,8 +18,9 @@ export type InferredDataset = {
 const MAX_EXAMPLES = 5;
 const MAX_SAMPLE_ROWS = 10;
 
-// Text is mostly unique and has too many values to list; anything else is a category (D-019).
+// Text is mostly unique with more than a handful of values; anything else is a category (D-019).
 const TEXT_DISTINCT_RATIO = 0.5;
+const TEXT_MIN_DISTINCT = 50;
 
 const NUMBER = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})(T(\d{2}):(\d{2})(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
@@ -107,7 +108,7 @@ function inferColumn(
     };
   }
 
-  if (distinct.length > MAX_LISTED_VALUES && distinct.length > present.length * TEXT_DISTINCT_RATIO) {
+  if (distinct.length > TEXT_MIN_DISTINCT && distinct.length > present.length * TEXT_DISTINCT_RATIO) {
     return {
       summary: { name, kind: "text", distinct: distinct.length, nulls, examples: distinct.slice(0, MAX_EXAMPLES) },
       values: cells,

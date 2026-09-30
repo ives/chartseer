@@ -139,7 +139,7 @@ const Annotations = z.array(Annotation).max(5).optional().describe("Up to 5 note
 
 const Base = z.strictObject({
   version: z.literal(1).describe("Always 1"),
-  title: z.string().describe("States what the chart shows, in plain words"),
+  title: z.string().describe("Describe what is plotted, not what it reveals, e.g. 'Weekly scoops by shop, 2025'"),
   subtitle: z.string().optional().describe("Extra context: units, date range, data caveats"),
   filters: z.array(Filter).max(5).optional().describe("Up to 5 row filters"),
 });

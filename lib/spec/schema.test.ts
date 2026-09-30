@@ -39,7 +39,7 @@ describe("fixtures", () => {
 
   it.each([
     ["both values and examples", { values: ["a", "b"], examples: ["a"] }],
-    ["examples when it has 50 or fewer values", { examples: ["a"] }],
+    ["examples when it has 200 or fewer values", { examples: ["a"] }],
     ["values that don't match the distinct count", { values: ["a"] }],
   ])("rejects a category column with %s", (_name, list) => {
     const column = { name: "c", kind: "category", distinct: 2, nulls: 0, ...list };

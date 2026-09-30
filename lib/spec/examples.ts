@@ -12,8 +12,7 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     spec: {
       version: 1,
       type: "line",
-      title: "Weekday hires peak at rush hour; weekends peak in the afternoon",
-      subtitle: "Journeys by starting hour",
+      title: "Journeys by hour of day, weekdays and weekends",
       x: { field: "hour", label: "Hour of day" },
       y: { aggregate: "count", label: "Journeys" },
       series: { field: "day_type" },
@@ -25,8 +24,7 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     spec: {
       version: 1,
       type: "bar",
-      title: "The 15 busiest areas to start a hire",
-      subtitle: "Journeys by start area",
+      title: "Top 15 start areas by journeys",
       x: { field: "start_area", label: "Start area" },
       y: { aggregate: "count", label: "Journeys" },
       orientation: "horizontal",
@@ -53,8 +51,7 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     spec: {
       version: 1,
       type: "area",
-      title: "Classic bikes carry most hires at every hour",
-      subtitle: "Journeys by starting hour and bike type",
+      title: "Journeys by hour of day and bike type",
       x: { field: "hour", label: "Hour of day" },
       y: { aggregate: "count", label: "Journeys" },
       series: { field: "bike_type" },
@@ -67,7 +64,7 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     spec: {
       version: 1,
       type: "scatter",
-      title: "Do busier stations have shorter hires?",
+      title: "Median hire duration against journeys started",
       subtitle: "One point per start station",
       per: { field: "start_station" },
       // Hires per station span several orders of magnitude.
@@ -99,8 +96,8 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     spec: {
       version: 1,
       type: "area",
-      title: "Scoops peak every summer",
-      subtitle: "All shops, 2024–2025",
+      title: "Monthly scoops, 2024–2025",
+      subtitle: "All shops",
       x: { field: "date", timeUnit: "month" },
       y: { field: "scoops", aggregate: "sum", label: "Scoops" },
     } satisfies ChartSpec,
@@ -112,7 +109,7 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
       version: 1,
       type: "bar",
       title: "Scoops by day of the week",
-      subtitle: "Canary Wharf is busiest on weekdays; every other shop peaks at the weekend",
+      subtitle: "By shop, 2024–2025",
       x: { field: "weekday", label: "Day" },
       y: { field: "scoops", aggregate: "sum", label: "Scoops" },
       series: { field: "shop" },
@@ -139,7 +136,7 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     spec: {
       version: 1,
       type: "scatter",
-      title: "Amalfi Lemon sales rise with the temperature at Richmond Riverside",
+      title: "Amalfi Lemon scoops against peak temperature, Richmond Riverside",
       subtitle: "One point per day",
       x: { field: "max_temp_c", label: "Maximum temperature (°C)" },
       y: { field: "scoops", label: "Scoops" },
@@ -156,7 +153,7 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     spec: {
       version: 1,
       type: "scatter",
-      title: "Hotter days sell more gelato, up to about 30°C",
+      title: "Daily scoops against peak temperature",
       subtitle: "One point per day · all shops and flavours, 2024–2025",
       per: { field: "date" },
       // The same on every row of a day, so the mean is that day's value.
