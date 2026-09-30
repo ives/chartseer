@@ -5,3 +5,4 @@ export { validateSpec } from "./validate";
 export { parseSpec, type ParseResult } from "./parse";
 export { bikesSummary, gelatoSummary } from "./fixtures";
 export { examples } from "./examples";
+export { BackToEvent } from "./events";

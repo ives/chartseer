@@ -266,7 +266,7 @@ The gallery's per-chart readout (React `Profiler`, then the next frame plus a ta
 **Decision:**
 - **The page shell lives in `components/studio/`:** the dataset picker, the chart area, the dataset loader, and `Workspace`, which holds one dataset's data, chat and chart. The chat UI stays in `components/chat/`. `Studio` remounts `Workspace` with `key={datasetId}`, so switching dataset clears the data, the messages and the chart history together.
 - **`useChat` from `@ai-sdk/react` 4.0.121,** wrapped in `useChartseerChat`. It pins `ai` 7.0.118, which matches ours, so the bundle has one copy of `ai`. Newer releases are held back by the repo's pnpm `minimumReleaseAge` policy.
-- **The chart history is derived from the messages:** every `renderChart` result that is `ok` *and* passes `parseSpec` against the summary loaded in the browser. The current chart is the last one. It can't drift from the conversation, and a broken spec can't reach `<Chart>` even if the server's copy of the summary differed. M4's undo can add a pointer into this list.
+- **The chart history is derived from the messages:** every `renderChart` result that is `ok` *and* passes `parseSpec` against the summary loaded in the browser. The current chart is the last one. It can't drift from the conversation, and a broken spec can't reach `<Chart>` even if the server's copy of the summary differed. M4's undo can add a pointer into this list. *It does: D-044.*
 - **The client builds the request body itself.** The SDK's default body adds `id`, `trigger` and `messageId`, which the server's strict schema rejects. `send` and `retry` pass `{ dataset, currentSpec }` as the per-call body, and the transport's `prepareSendMessagesRequest` keeps exactly those fields plus the messages (`buildChatBody`). The transport is a module-level constant: reading a ref from it breaks React's rules of refs.
 - **Screen readers:** the message list isn't a live region, because streamed text would be read out word by word. A `role="status"` line says "Working on it…" during a request, then the finished reply and "Chart drawn: {title}". Errors are announced by their own `role="alert"`. Focus returns to the input when a request ends.
 **Consequences:** No shadcn/ui yet: plain elements styled with Tailwind, plus `--surface`, `--border`, `--muted` and `--danger` tokens. The CSV loader repeats a few lines of the dev gallery's.
@@ -378,4 +378,33 @@ The schema is about 74% of gelato's cached prefix of about 10,200 tokens, and ab
 **Context:** The app is deployed on Vercel (M0), and we want to see page views on the public demo.
 **Decision:** Add `@vercel/analytics` and render its `<Analytics />` component once, in `app/layout.tsx`. It's first-party to the host, needs no configuration in code, and does nothing in development.
 **Consequences:** Web Analytics must be enabled for the project in the Vercel dashboard before any data appears. It records page views, not what users type or upload: file contents never leave the browser, as the privacy note says (D-005, D-041).
+
+## D-044 · 2026-09-30 · Undo and redo
+
+**Context:** ARCHITECTURE §8 promised undo from the spec history, and D-035 left room for a pointer into it. A refinement must build on the chart the user sees, not on whichever chart the conversation drew last.
+**Decision:**
+- **Steps are positions in the derived history.** `chartHistory` stays derived from the messages. `components/chat/history.ts` keeps a stack of positions in it, plus the shown position. The stack is synced during render by a pure, idempotent `syncSteps`, so no effect is needed to keep it in step with the messages.
+- **The shown chart is the current spec.** `useChartseerChat` sends it with the next request through the existing `RequestContext`, so the transport is unchanged.
+- **The undo is recorded in the conversation itself.** When the user sends a message while the shown chart isn't the latest, the message starts with a `data-back-to` part holding that chart's title. Only where the user ended up counts, not each click, and a message sent from the latest chart has no event.
+  - The server validates the part (`BackToEvent` in `lib/spec/events.ts`, a title of 1–200 characters; any other data part is rejected). `convertToModelMessages`' `convertDataPart` turns it into text written by the server, just before the user's words: "The user went back to the chart '…'. Later charts are no longer shown."
+  - The chat shows it as a small line above the message: "↩ Back to: {title}".
+  - Retries resend the same message, and later turns keep the event, so the model's record of the conversation matches the screen.
+- **A new chart after an undo discards the redo steps,** as in any editor. The model's earlier charts stay in the conversation but drop out of the stack. If a retry removes a message that drew a chart, that chart leaves the stack too.
+- **Controls:** Undo and Redo buttons above the chart, disabled at either end. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes.
+  - The shortcut is ignored in any text field (`input`, `textarea`, `contenteditable`), not just the chat input: anything a user types into keeps its own text undo.
+  - `preventDefault` is called only when the shortcut acts.
+- **Undo and redo are disabled while a request is in flight,** because the reply builds on the spec the request was sent with.
+- **Screen readers:** after an undo or redo, a status line reads "Showing chart 2 of 4: {title}". The title is added so the user knows which chart came back. A new chart is announced by the chat panel as before (D-035), not here.
+**Why a system-prompt rule wasn't enough:** the first version only added a rule: "The current chart below is always the one the user sees… Base follow-ups on it, not on later charts." In Chrome, after two charts and an undo, "Make it stacked" stacked the *later* chart. An in-page capture showed the request did carry the restored chart as the current spec. Asked again, the model replied "That's already stacked", about a chart no longer on screen. The conversation's record, in which the later chart was the last one drawn, outweighed a general rule and a spec in the system prompt. The rule was removed, and the rules went back to 486 tokens.
+**Why a data part, not a mid-conversation system message:** the Anthropic provider (4.0.65) supports mid-conversation system messages through beta features. But `/api/chat` rejects every system message from the client ("the system prompt is ours alone"), so the choice was between relaxing that rule and having the server build system messages from client state, while depending on a beta. A data part is the SDK's documented way to add context to a user message. It keeps the security rule, and the server still writes every word the model reads.
+**Consequences:**
+- **Tests:**
+  - A mock-model test drives the hook through a stand-in for `/api/chat`: two charts, an undo, then "Make it stacked". The third request carried the restored spec, its user message began with the event text, earlier messages had none, and the discarded step can't be redone. The test fails if the current spec reverts to the latest chart.
+  - Server tests check that the event reaches the model as text before the user's words, and that unknown data parts, overlong titles and extra fields are rejected.
+- **`pnpm check-prompts`** has a permanent `undo` case:
+  - It sends two earlier turns (weekly scoops by shop, then revenue by flavour) and a back-to event for the weekly chart, then "Make it stacked".
+  - It counts as met only if the chart still plots scoops by date, split by shop.
+  - First run (2026-09-30, `claude-sonnet-5`): met. The result was a stacked area chart of weekly scoops by shop.
+  - Overall 25/25 expectations met, all charts valid first time. "Just the summer" on bikes went back to prose this run; either outcome is allowed.
+- **Live check in Chrome:** the same steps drew weekly scoops by shop, then weekly revenue by flavour; then Undo and "Make it stacked". The chat showed "↩ Back to: Weekly scoops by shop, 2025" and the result was a stacked area chart of weekly scoops by shop, with Redo unavailable.
 

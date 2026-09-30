@@ -7,6 +7,7 @@ import type { BundledDataset, DatasetMeta } from "@/lib/data/datasets";
 import type { InferredDataset } from "@/lib/data/infer";
 import { prepareChartData } from "@/lib/data/prepare";
 import { ChartArea } from "./chart-area";
+import { undoShortcut } from "./undo-shortcut";
 import { type DatasetState, useDataset } from "./use-dataset";
 
 // A bundled dataset is fetched; an upload arrives parsed and inferred.
@@ -31,6 +32,20 @@ export function Workspace({ source, onConversationChange }: WorkspaceProps) {
   const active = chat.messages.length > 0;
   useEffect(() => onConversationChange(active), [active, onConversationChange]);
 
+  const { undo, redo, canUndo, canRedo } = chat;
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const action = undoShortcut(event);
+      // Left to the browser when there is nothing to undo or redo.
+      if (action === "undo" && canUndo) undo();
+      else if (action === "redo" && canRedo) redo();
+      else return;
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo, canUndo, canRedo]);
+
   const chart = useMemo(() => {
     if (!inferred || !chat.currentSpec) return null;
     const data = prepareChartData(inferred.rows, inferred.summary, chat.currentSpec, meta);
@@ -50,6 +65,13 @@ export function Workspace({ source, onConversationChange }: WorkspaceProps) {
             chart={chart}
             dataset={meta}
             examples={source.kind === "bundled" ? source.examples : []}
+            steps={{
+              canUndo: chat.canUndo,
+              canRedo: chat.canRedo,
+              announcement: chat.announcement,
+              onUndo: undo,
+              onRedo: redo,
+            }}
           />
         )}
       </section>

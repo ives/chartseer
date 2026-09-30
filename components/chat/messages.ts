@@ -1,9 +1,19 @@
 import type { ChatStatus, UIMessage } from "ai";
-import { type ChartSpec, type DatasetSummary, type ParseResult, parseSpec } from "@/lib/spec";
+import { type BackToEvent, type ChartSpec, type DatasetSummary, type ParseResult, parseSpec } from "@/lib/spec";
 
-// A chat message as the client sees it. The tool's types come from lib/spec;
-// client code never imports lib/ai.
-export type ChartseerMessage = UIMessage<never, never, { renderChart: { input: unknown; output: ParseResult } }>;
+// A chat message as the client sees it. The tool's and the data part's types
+// come from lib/spec; client code never imports lib/ai.
+export type ChartseerMessage = UIMessage<
+  never,
+  { "back-to": BackToEvent },
+  { renderChart: { input: unknown; output: ParseResult } }
+>;
+
+// The chart a user message says they went back to, if it does (D-044).
+export function backToIn(message: ChartseerMessage): BackToEvent | undefined {
+  for (const part of message.parts) if (part.type === "data-back-to") return part.data;
+  return undefined;
+}
 
 // What each request needs besides the messages.
 export type RequestContext = { dataset: DatasetSummary; currentSpec: ChartSpec | null };

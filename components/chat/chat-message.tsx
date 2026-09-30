@@ -1,5 +1,5 @@
 import type { DatasetSummary } from "@/lib/spec";
-import { type ChartseerMessage, specsIn, textOf } from "./messages";
+import { type ChartseerMessage, backToIn, specsIn, textOf } from "./messages";
 
 // Text only. A drawn chart adds a short line saying so; failed attempts show
 // nothing, as the model's own words explain them.
@@ -7,10 +7,18 @@ export function ChatMessage({ message, dataset }: { message: ChartseerMessage; d
   const text = textOf(message);
   const drawn = specsIn(message, dataset);
   if (message.role === "user") {
+    const backTo = backToIn(message);
     return (
-      <li className="self-end max-w-[85%] rounded-lg bg-foreground px-3 py-2 text-sm whitespace-pre-wrap text-background">
-        <span className="sr-only">You: </span>
-        {text}
+      <li className="flex max-w-[85%] flex-col items-end gap-1 self-end">
+        {backTo && (
+          <p className="text-xs text-muted">
+            <span aria-hidden="true">↩ </span>Back to: {backTo.title}
+          </p>
+        )}
+        <p className="rounded-lg bg-foreground px-3 py-2 text-sm whitespace-pre-wrap text-background">
+          <span className="sr-only">You: </span>
+          {text}
+        </p>
       </li>
     );
   }

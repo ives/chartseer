@@ -9,8 +9,8 @@ import {
   streamText,
 } from "ai";
 import { z } from "zod";
-import { ChartSpec, DatasetSummary } from "@/lib/spec";
-import { MAX_ATTEMPTS, buildSystemPrompt } from "./prompt";
+import { BackToEvent, ChartSpec, DatasetSummary } from "@/lib/spec";
+import { MAX_ATTEMPTS, backToText, buildSystemPrompt } from "./prompt";
 import { getModel } from "./provider";
 import { createRenderChartTool } from "./tools";
 
@@ -31,7 +31,8 @@ export async function parseChatRequest(
   if (!parsed.success) {
     return { ok: false, errors: parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`) };
   }
-  const messages = await safeValidateUIMessages({ messages: parsed.data.messages });
+  // The one data part a client may send; any other is rejected (D-044).
+  const messages = await safeValidateUIMessages({ messages: parsed.data.messages, dataSchemas: { "back-to": BackToEvent } });
   if (!messages.success) return { ok: false, errors: [`messages: ${messages.error.message}`] };
   // The system prompt is ours alone.
   if (messages.data.some((message) => message.role === "system")) {
@@ -61,7 +62,12 @@ export async function streamChart(request: ChatRequest, model: LanguageModel = g
       { role: "system", content: prompt.dataset, providerOptions: CACHE },
       { role: "system", content: prompt.currentSpec },
     ],
-    messages: await convertToModelMessages(request.messages),
+    // An undo travels as a data part on the user's message, so the model's
+    // record of the conversation matches the screen (D-044).
+    messages: await convertToModelMessages(request.messages, {
+      convertDataPart: (part) =>
+        part.type === "data-back-to" ? { type: "text", text: backToText(BackToEvent.parse(part.data)) } : undefined,
+    }),
     tools,
     // Stop once a chart is drawn. After the last failed attempt, the next step
     // can only be prose explaining the problem (D-032).

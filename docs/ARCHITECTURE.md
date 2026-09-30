@@ -149,6 +149,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - Every tool call returns a **complete** spec, never a patch. The current spec is sent with each request so the model can revise it.
 - The browser keeps the list of specs as history, which gives undo for free.
+- **Undo and redo** (D-044) step through that history, with buttons in the chart area or Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z outside text fields. The chart on screen is always the current spec sent with the next request, and the user's next message starts with a short event naming it ("↩ Back to: …"), so a refinement after an undo builds on what the user sees. A new chart after an undo discards the redo steps.
 - Text streams as it arrives. While a tool call is in progress, the chart area shows a skeleton. The chart renders only once the spec is complete and validated.
 
 ## 9. Rendering
@@ -177,7 +178,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - **`lib/`:** Vitest unit tests for schema, validation, inference and `prepareChartData`. A test asserts that every example spec passes both validation layers.
 - **Charts:** React Testing Library for structure and accessible text, not pixels. Visual checks happen on a dev-only gallery page that renders every example spec.
-- **The model:** no live model calls in the test suite. `pnpm check-prompts`, run by hand, sends 24 requests through `lib/ai` against the demo data and reports how many produce valid specs first time, with tokens and response times. Full results go to `scripts/reports/` (git-ignored). Results in D-037 and D-040.
+- **The model:** no live model calls in the test suite. `pnpm check-prompts`, run by hand, sends 25 requests through `lib/ai`, including a refinement after an undo, against the demo data and reports how many produce valid specs first time, with tokens and response times. Full results go to `scripts/reports/` (git-ignored). Results in D-037, D-040 and D-044.
 
 ## 13. Milestones
 

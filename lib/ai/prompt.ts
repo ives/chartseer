@@ -1,4 +1,4 @@
-import type { ChartSpec, DatasetSummary } from "@/lib/spec";
+import type { BackToEvent, ChartSpec, DatasetSummary } from "@/lib/spec";
 
 // The system prompt, in three parts, most stable first, so the first two can be
 // cached (D-033): the rules never change, the dataset changes only when the
@@ -20,6 +20,12 @@ Rules:
 - The spec describes meaning, not appearance. There are no colours, fonts or sizes to set.
 - If the message isn't about a chart, answer in a sentence and invite a chart request.
 - Write in British English.`;
+
+// What the model reads, just before the user's words, when they undid back to
+// an earlier chart before sending (D-044).
+export function backToText({ title }: BackToEvent): string {
+  return `The user went back to the chart '${title}'. Later charts are no longer shown.`;
+}
 
 export function buildSystemPrompt(dataset: DatasetSummary, currentSpec: ChartSpec | null): SystemPrompt {
   return {

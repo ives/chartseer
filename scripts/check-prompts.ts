@@ -3,7 +3,7 @@
 // Also measures the tool schema, rules and dataset summaries in tokens.
 //
 // Usage: pnpm check-prompts
-// Makes about 24 live model calls; the token counts are free. Reads
+// Makes about 25 live model calls; the token counts are free. Reads
 // ANTHROPIC_API_KEY from .env.local. Never runs in the test suite.
 // Full results go to scripts/reports/ (git-ignored).
 //
@@ -11,7 +11,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { UIMessage } from "ai";
-import { type ChatRequest, streamChart } from "../lib/ai/chat";
+import { type ChatRequest, parseChatRequest, streamChart } from "../lib/ai/chat";
 import { buildSystemPrompt } from "../lib/ai/prompt";
 import { getModel } from "../lib/ai/provider";
 import { RENDER_CHART_DESCRIPTION, RENDER_CHART_SCHEMA } from "../lib/ai/tools";
@@ -21,9 +21,21 @@ import { parseCsv } from "../lib/data/parse";
 import { type ChartSpec, type DatasetSummary, type ParseResult, examples } from "../lib/spec";
 
 type DatasetId = keyof typeof datasets;
-type Kind = "plain" | "refinement" | "vague" | "misspelt" | "impossible" | "off-topic";
+type Kind = "plain" | "refinement" | "vague" | "misspelt" | "impossible" | "off-topic" | "undo";
 type Expect = "chart" | "no-chart" | "either";
-type Case = { dataset: DatasetId; kind: Kind; prompt: string; current?: string; expect: Expect };
+type Case = {
+  dataset: DatasetId;
+  kind: Kind;
+  prompt: string;
+  current?: string;
+  // Earlier turns, each a request and the example spec it drew.
+  earlier?: { prompt: string; drew: string }[];
+  // The example spec the user undid back to before sending (D-044). It is also the current spec.
+  backTo?: string;
+  expect: Expect;
+  // A chart only meets the expectation if it passes this too.
+  check?: (spec: ChartSpec) => boolean;
+};
 type Outcome = "valid first time" | "valid after retry" | "failed" | "no chart" | "api error";
 
 // `current` names a spec in lib/spec/examples.ts to refine. Those specs pass
@@ -41,6 +53,20 @@ const CASES: Case[] = [
   { dataset: "gelato", kind: "misspelt", prompt: "Monthly revenue for Amalfi Lemno", expect: "chart" },
   { dataset: "gelato", kind: "impossible", prompt: "A pie chart of flavours", expect: "either" },
   { dataset: "gelato", kind: "off-topic", prompt: "What's the capital of France?", expect: "no-chart" },
+  {
+    dataset: "gelato",
+    kind: "undo",
+    prompt: "Make it stacked",
+    earlier: [
+      { prompt: "Weekly scoops by shop in 2025", drew: "gelato-weekly-2025" },
+      { prompt: "Revenue by flavour instead", drew: "gelato-revenue-by-flavour" },
+    ],
+    backTo: "gelato-weekly-2025",
+    expect: "chart",
+    // Built on the weekly chart the user went back to, not the later revenue one.
+    check: (spec) =>
+      spec.type !== "scatter" && spec.x.field === "date" && "field" in spec.y && spec.y.field === "scoops" && spec.series?.field === "shop",
+  },
 
   { dataset: "bikes", kind: "plain", prompt: "Journeys by hour of day, weekdays against weekends", expect: "chart" },
   { dataset: "bikes", kind: "plain", prompt: "The 10 busiest start areas", expect: "chart" },
@@ -108,9 +134,32 @@ async function measure(model: string, summaries: Record<DatasetId, DatasetSummar
   return { tools, rules, dataset, schemaBytes: JSON.stringify(RENDER_CHART_SCHEMA).length };
 }
 
+// The conversation so far, as the browser would send it: earlier requests and
+// the charts they drew, then this prompt, after a back-to event if there is one.
+function conversation(c: Case): UIMessage[] {
+  const earlier = (c.earlier ?? []).flatMap(({ prompt, drew }, i): UIMessage[] => {
+    const spec = exampleSpec(drew);
+    return [
+      { id: `u${i}`, role: "user", parts: [{ type: "text", text: prompt }] },
+      {
+        id: `a${i}`,
+        role: "assistant",
+        parts: [
+          { type: "tool-renderChart", toolCallId: `call-${i}`, state: "output-available", input: { spec }, output: { ok: true, spec } },
+        ],
+      },
+    ];
+  });
+  const backTo = c.backTo ? [{ type: "data-back-to" as const, data: { title: exampleSpec(c.backTo).title } }] : [];
+  return [...earlier, { id: "m", role: "user", parts: [...backTo, { type: "text", text: c.prompt }] }];
+}
+
 async function runCase(c: Case, dataset: DatasetSummary): Promise<Result> {
-  const messages: UIMessage[] = [{ id: "m1", role: "user", parts: [{ type: "text", text: c.prompt }] }];
-  const request: ChatRequest = { messages, dataset, currentSpec: c.current ? exampleSpec(c.current) : null };
+  // Checked as /api/chat would, so a case can't send what the app couldn't.
+  const current = c.backTo ?? c.current;
+  const parsed = await parseChatRequest({ messages: conversation(c), dataset, currentSpec: current ? exampleSpec(current) : null });
+  if (!parsed.ok) throw new Error(`Case "${c.prompt}": ${parsed.errors.join("; ")}`);
+  const request: ChatRequest = parsed.request;
   const started = performance.now();
   let firstChunkMs: number | null = null;
   let apiError: string | undefined;
@@ -138,7 +187,9 @@ async function runCase(c: Case, dataset: DatasetSummary): Promise<Result> {
           ? "valid after retry"
           : "failed";
   const drew = valid !== undefined;
-  const expectMet = c.expect === "either" ? outcome !== "api error" : c.expect === "chart" ? drew : outcome === "no chart";
+  const expectMet =
+    (c.expect === "either" ? outcome !== "api error" : c.expect === "chart" ? drew : outcome === "no chart") &&
+    (!c.check || (valid?.ok === true && c.check(valid.spec)));
 
   return {
     ...c,
