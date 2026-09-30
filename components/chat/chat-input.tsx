@@ -51,12 +51,12 @@ export function ChatInput({ onSend, busy, disabled, ref }: ChatInputProps) {
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Describe a chart…"
-        className="min-h-[3rem] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-2 focus:outline-offset-1 focus:outline-foreground disabled:opacity-50"
+        className="min-h-[3rem] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted disabled:opacity-50"
       />
       <button
         type="submit"
         disabled={!canSend}
-        className="rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:opacity-40"
+        className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground disabled:opacity-40"
       >
         Send
       </button>

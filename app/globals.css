@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  /* Native controls, such as the dataset select, follow the theme. */
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 
@@ -9,6 +11,12 @@
   --border: #e1e0d9;
   --muted: #6b6a65;
   --danger: #b42318;
+
+  /* The one accent (D-054): primary buttons, links, the focus ring and the
+     wordmark. Never a chart colour. */
+  --accent: #2e5a47;
+  --accent-foreground: #ffffff;
+  --focus: var(--accent);
 
   /* Chart series, assigned in order (D-024). Slots 1–8 are a validated
      categorical palette; 9–12 extend it and pass the same checks. */
@@ -53,7 +61,11 @@
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-danger: var(--danger);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-focus: var(--focus);
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-fraunces);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -62,6 +74,7 @@
    repeats these values; a test keeps the two identical. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --background: #0a0a0a;
     --foreground: #ededed;
 
@@ -69,6 +82,10 @@
     --border: #2c2c2a;
     --muted: #a3a29b;
     --danger: #f97066;
+
+    --accent: #8ccab0;
+    --accent-foreground: #0a0a0a;
+    --focus: var(--accent);
 
     --chart-1: #3987e5;
     --chart-2: #d95926;
@@ -100,6 +117,7 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --background: #0a0a0a;
   --foreground: #ededed;
 
@@ -107,6 +125,10 @@
   --border: #2c2c2a;
   --muted: #a3a29b;
   --danger: #f97066;
+
+  --accent: #8ccab0;
+  --accent-foreground: #0a0a0a;
+  --focus: var(--accent);
 
   --chart-1: #3987e5;
   --chart-2: #d95926;
@@ -152,5 +174,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* One focus ring for every control, so none can be missed (D-056). In the
+   base layer, so a utility can still adjust it. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
 }

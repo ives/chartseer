@@ -67,7 +67,7 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, description
     // In dark mode the panel is subtly raised; in light mode it is transparent (D-050).
     <figure className="flex flex-col gap-3 rounded-lg bg-(--chart-panel) p-3">
       <figcaption className="flex flex-col gap-1">
-        <h2 id={titleId} className="text-base font-semibold">
+        <h2 id={titleId} className="font-serif text-xl font-semibold tracking-tight">
           {title}
         </h2>
         {subtitle && <p className="text-sm opacity-70">{subtitle}</p>}
@@ -96,7 +96,7 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, description
           type="button"
           aria-pressed={showTable}
           onClick={() => setShowTable((shown) => !shown)}
-          className="rounded border border-(--chart-axis) px-2 py-0.5 text-xs opacity-80 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="rounded border border-(--chart-axis) px-2 py-0.5 text-xs opacity-80 hover:opacity-100"
         >
           {showTable ? "View as chart" : "View as table"}
         </button>

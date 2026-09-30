@@ -6,6 +6,7 @@ import { type DateOrder, inferDataset } from "@/lib/data/infer";
 import type { ParsedCsv } from "@/lib/data/parse";
 import { starterPrompts } from "@/lib/data/starters";
 import { readUpload } from "@/lib/data/upload";
+import { AppHeader } from "./app-header";
 import { ConfirmDialog } from "./confirm-dialog";
 import { DatasetChooser } from "./dataset-chooser";
 import { type DatasetId, DatasetPicker } from "./dataset-picker";
@@ -72,7 +73,9 @@ export function Studio() {
 
   return (
     <main
-      className="mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-4 lg:h-dvh lg:px-6"
+      // From tablet width the page fits the screen and each pane scrolls; on a
+      // phone the page scrolls, with room at the bottom for the pinned input (D-055).
+      className={`mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-4 md:px-6 ${source ? "pb-28 md:h-dvh md:pb-4" : ""}`}
       onDragOver={(event) => {
         if (!hasFiles(event)) return;
         event.preventDefault();
@@ -92,39 +95,39 @@ export function Studio() {
         else void loadFile(file);
       }}
     >
-      <header className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">Chartseer</h1>
-          {source && (
-          <div className="flex flex-wrap items-center gap-3">
-            <DatasetPicker
-              value={source.kind === "bundled" ? source.id : "upload"}
-              upload={source.kind === "upload" ? source.upload.name : null}
-              onChange={(id) => choose({ kind: "bundled", id })}
-            />
-            {ambiguous && (
-              <p className="text-sm text-muted">
-                Dates read as {dateOrder === "day-first" ? "day/month" : "month/day"} ·{" "}
-                <button
-                  type="button"
-                  onClick={() => setDateOrder(dateOrder === "day-first" ? "month-first" : "day-first")}
-                  className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-foreground"
-                >
-                  switch
-                </button>
-              </p>
-            )}
-            <UploadButton onFile={(file) => void loadFile(file)} />
-          </div>
-          )}
-        </div>
+      <AppHeader
+        controls={
+          source && (
+            <div className="flex flex-wrap items-center gap-3">
+              <DatasetPicker
+                value={source.kind === "bundled" ? source.id : "upload"}
+                upload={source.kind === "upload" ? source.upload.name : null}
+                onChange={(id) => choose({ kind: "bundled", id })}
+              />
+              {ambiguous && (
+                <p className="text-sm text-muted">
+                  Dates read as {dateOrder === "day-first" ? "day/month" : "month/day"} ·{" "}
+                  <button
+                    type="button"
+                    onClick={() => setDateOrder(dateOrder === "day-first" ? "month-first" : "day-first")}
+                    className="text-accent underline underline-offset-2"
+                  >
+                    switch
+                  </button>
+                </p>
+              )}
+              <UploadButton onFile={(file) => void loadFile(file)} />
+            </div>
+          )
+        }
+      >
         {source && <p className="text-xs text-muted sm:self-end">{PRIVACY_NOTE}</p>}
         {error && (
           <p role="alert" className="text-sm text-danger sm:self-end">
             {error}
           </p>
         )}
-      </header>
+      </AppHeader>
       {source && workspace ? (
         // Remounting on a new dataset clears the data, the chat and the chart history together.
         <Workspace

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { datasets } from "@/lib/data/datasets";
 import { inferDataset } from "@/lib/data/infer";
@@ -17,6 +18,14 @@ if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
 const chart = { spec: parsed.spec, data: prepareChartData(rows, summary, parsed.spec), dataset: datasets.gelato, empty: null };
 const ask = { starters: ["Daily revenue by shop in 2025"], canAsk: true, onAsk: () => {} };
 const steps = { canUndo: false, canRedo: false, announcement: "", onUndo: () => {}, onRedo: () => {} };
+
+// axe's rule ids that fail in this subtree. jsdom lays nothing out, so colour
+// contrast is checked in the browser instead (D-057); a lone component has no
+// landmark around it.
+async function axeViolations(container: Element): Promise<string[]> {
+  const result = await axe.run(container, { rules: { "color-contrast": { enabled: false }, region: { enabled: false } } });
+  return result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(", ")}`);
+}
 
 describe("ChartArea", () => {
   beforeEach(() => {
@@ -128,5 +137,21 @@ describe("ChartArea", () => {
     expect(screen.getByRole("status").textContent).toBe("Showing chart 1 of 2: Scoops by day");
     rerender(<ChartArea pending chart={chart} dataset={datasets.gelato} {...ask} steps={announced} />);
     expect(screen.getByRole("status").textContent).toBe("Showing chart 1 of 2: Scoops by day");
+  });
+
+  it("passes axe before any chart, with a chart, as a table and when empty", async () => {
+    const before = render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} {...ask} steps={steps} />);
+    expect(await axeViolations(before.container)).toEqual([]);
+    cleanup();
+
+    const drawn = render(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
+    expect(await axeViolations(drawn.container)).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    expect(await axeViolations(drawn.container)).toEqual([]);
+    cleanup();
+
+    const empty = { kind: "filter", message: "No rows where shop is 'Brixtn'.", request: "Fix the filter." } as const;
+    const nothing = render(<ChartArea pending={false} chart={{ ...chart, empty }} dataset={datasets.gelato} {...ask} steps={steps} />);
+    expect(await axeViolations(nothing.container)).toEqual([]);
   });
 });

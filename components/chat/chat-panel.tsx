@@ -55,7 +55,7 @@ export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRe
             <button
               type="button"
               onClick={onRetry}
-              className="rounded border border-border px-2 py-0.5 text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+              className="rounded border border-border px-2 py-0.5 text-foreground"
             >
               Try again
             </button>
@@ -71,7 +71,11 @@ export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRe
         </p>
       )}
       {/* Offline, typing still works; sending waits, as while a reply streams. */}
-      <ChatInput ref={input} onSend={onSend} busy={busy || !online} disabled={!dataset} />
+      {/* On a phone the input is pinned to the bottom of the screen, so it is
+          always within reach below the chart (D-055). */}
+      <div className="fixed inset-x-0 bottom-0 z-10 bg-surface pb-[env(safe-area-inset-bottom)] md:static md:z-auto md:rounded-b-lg md:pb-0">
+        <ChatInput ref={input} onSend={onSend} busy={busy || !online} disabled={!dataset} />
+      </div>
     </section>
   );
 }

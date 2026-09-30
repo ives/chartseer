@@ -169,7 +169,11 @@ All errors are collected, not just the first. A check that needs a missing colum
 - `describeChart(spec, data)` in `lib/data/describe.ts` produces a deterministic text summary of each chart: what is plotted, the range, and where the largest value is. It is the SVG's accessible description (`aria-describedby`). It lives in `lib/data`, not `lib/spec`, because it reads the prepared `ChartData` (D-029).
 - Every chart has a "View as table" toggle, which swaps the plot for an HTML table of the same `ChartData`: a caption, column and row headers, missing values read as "no data", and partial buckets marked. The title, notes and attribution stay.
 - Colour is never the only way to tell series apart; the legend and tooltips carry labels. Tooltips are for pointers only and hidden from assistive technology; the table view has every value they show (D-052).
-- Everything is reachable by keyboard.
+- Everything is reachable by keyboard, in the order it appears on screen. One global `:focus-visible` rule draws the focus ring in the accent colour on every control (D-056).
+- All text meets WCAG AA contrast in both themes. The page has one `h1`, the wordmark; chart titles and screen titles are `h2`.
+- A newly drawn chart is announced by the chat's status line, and an undo or redo by the chart area's, so each change is read out once.
+- axe runs in the test suite (without colour contrast, which jsdom can't measure) and by hand in the browser on every screen, in both themes (D-057).
+- Layout: chart and chat side by side from 768 px; below that the page scrolls, chart first, with the chat input pinned to the bottom of the screen (D-055).
 
 ## 11. Scope fence
 
@@ -192,7 +196,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 - [x] **M2 — Rendering without AI:** CSV parsing, column inference, `prepareChartData`, chart frame, four renderers, gallery page.
 - [x] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
 - [x] **M4 — Refinement and states:** follow-up edits, undo, CSV upload in the UI, error and empty states.
-- [ ] **M5 — Polish:** dark mode, accessibility pass, motion, responsive layout.
+- [x] **M5 — Polish:** dark mode, accessibility pass, motion, responsive layout.
 - [ ] **M6 — Ship:** rate limiting, README, demo recording.
 
 ## 14. Open questions

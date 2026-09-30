@@ -38,14 +38,14 @@ export function ConfirmDialog({ open, title, message, confirmLabel, onConfirm, o
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-border px-3 py-1.5 focus-visible:outline-2 focus-visible:outline-foreground"
+          className="rounded-md border border-border px-3 py-1.5"
         >
           Cancel
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className="rounded-md bg-foreground px-3 py-1.5 font-medium text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+          className="rounded-md bg-accent px-3 py-1.5 font-medium text-accent-foreground"
         >
           {confirmLabel}
         </button>

@@ -1,10 +1,18 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "./studio";
 
 function csvFile(text: string, name = "sales.csv") {
   return new File([text], name, { type: "text/csv" });
+}
+
+// axe's rule ids that fail on the page. jsdom lays nothing out, so colour
+// contrast is checked in the browser instead (D-057).
+async function axeViolations(): Promise<string[]> {
+  const result = await axe.run(document.body, { rules: { "color-contrast": { enabled: false } } });
+  return result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(", ")}`);
 }
 
 function upload(file: File) {
@@ -23,6 +31,19 @@ describe("Studio uploads", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it("has the wordmark as its only top-level heading", () => {
+    render(<Studio />);
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual(["Chartseer"]);
+  });
+
+  it("passes axe on the first screen and in the workspace", async () => {
+    render(<Studio />);
+    expect(await axeViolations()).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    await screen.findByRole("button", { name: "Daily revenue by shop in 2025" });
+    expect(await axeViolations()).toEqual([]);
   });
 
   it("shows the privacy note, word for word", () => {

@@ -20,7 +20,7 @@ export function DatasetChooser({ onPick, onFile }: { onPick: (id: DatasetId) => 
               <button
                 type="button"
                 onClick={() => onPick(id)}
-                className="flex h-full w-full flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-left hover:border-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+                className="flex h-full w-full flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-left hover:border-accent"
               >
                 <span className="font-medium">{meta.title}</span>
                 <span className="text-sm text-muted">{meta.summary}</span>

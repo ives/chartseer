@@ -58,15 +58,15 @@ export function Workspace({ source, onConversationChange, onRetryLoad }: Workspa
   }, [inferred, chat.currentSpec, meta]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-      <section aria-label="Chart" className="min-w-0 lg:flex-[2] lg:overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+      <section aria-label="Chart" className="min-w-0 md:flex-[3] md:overflow-y-auto">
         {loaded.status === "error" ? (
           <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">
             <span>Couldn’t load {meta.title}. Check your connection.</span>
             <button
               type="button"
               onClick={onRetryLoad}
-              className="rounded border border-border px-2 py-0.5 text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+              className="rounded border border-border px-2 py-0.5 text-foreground"
             >
               Try again
             </button>
@@ -89,7 +89,7 @@ export function Workspace({ source, onConversationChange, onRetryLoad }: Workspa
           />
         )}
       </section>
-      <div className="flex min-h-[24rem] flex-col lg:min-h-0 lg:flex-1">
+      <div className="flex min-h-[12rem] flex-col md:min-h-0 md:min-w-[18rem] md:flex-[2]">
         <ChatPanel
           messages={chat.messages}
           dataset={inferred?.summary ?? null}

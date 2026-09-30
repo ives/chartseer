@@ -32,7 +32,7 @@ type ChartAreaProps = {
 };
 
 const BUTTON =
-  "rounded-md border border-border px-2 py-0.5 focus-visible:outline-2 focus-visible:outline-foreground disabled:opacity-40";
+  "rounded-md border border-border px-2 py-0.5 disabled:opacity-40";
 
 // Skeleton, chart or empty state. It knows nothing about chat: a failed tool
 // call simply leaves the previous chart, or the empty state, in place.
@@ -71,7 +71,7 @@ export function ChartArea({ pending, chart, dataset, starters, canAsk, onAsk, st
           {chart.empty ? (
             // A message in the chart's place, not blank axes.
             <div className="flex min-h-[360px] flex-col justify-center gap-3 rounded-lg border border-dashed border-border p-6 text-sm">
-              <h2 className="text-base font-semibold">{chart.spec.title}</h2>
+              <h2 className="font-serif text-xl font-semibold tracking-tight">{chart.spec.title}</h2>
               <p>{chart.empty.message}</p>
               {chart.empty.kind === "filter" && (
                 <p>
@@ -104,7 +104,7 @@ export function ChartArea({ pending, chart, dataset, starters, canAsk, onAsk, st
                       type="button"
                       disabled={!canAsk}
                       onClick={() => onAsk(starter)}
-                      className="rounded-full border border-border bg-background px-3 py-1 text-foreground hover:bg-surface focus-visible:outline-2 focus-visible:outline-foreground disabled:opacity-40"
+                      className="rounded-full border border-border bg-background px-3 py-1 text-foreground hover:bg-surface disabled:opacity-40"
                     >
                       {starter}
                     </button>

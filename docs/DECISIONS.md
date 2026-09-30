@@ -536,3 +536,37 @@ It's read through `readCsv` and `inferDataset` with no meta, exactly as an uploa
 - **Reduced motion:** `useReducedMotion` follows `prefers-reduced-motion`. When set, nothing tweens and nothing crossfades; the chart simply changes. It also assumes reduced motion on the server.
 **Consequences:** Tests drive the tween with fake animation frames. They check that the first frame after a change is the old one, that the chart settles within 300 ms, and that with reduced motion the new chart is final at once with no timers scheduled. The easing test fails if the tween is removed. An animation paused in a hidden tab finishes when the tab is shown again.
 
+## D-054 · 2026-09-30 · Typeface and accent
+
+**Context:** The app had no visual identity: a plain sans heading, no accent, and body text in Arial because `globals.css` overrode the loaded Geist. The direction for M5 was calm and editorial, with the chart as the hero. Three pairings were compared side by side on a temporary dev page: Source Serif 4 with ink navy, Newsreader with oxblood, and Fraunces with forest green.
+**Decision:**
+- **Fraunces** (Google Fonts via `next/font`, optical-size axis) for the wordmark and chart titles only; **Geist** for everything else. Body text now uses Geist.
+- **One accent, forest green:** `--accent` `#2e5a47` in light mode (7.9:1 on the background) and `#8ccab0` in dark mode (10.6:1), with `--accent-foreground` for text on it. It is used for primary buttons (Send, the dialog's confirm), links, the focus ring, dataset cards on hover and the wordmark's mark.
+- The accent is never a chart colour, and the spec still carries no fonts or colours: the serif comes from the chart frame's CSS.
+**Consequences:** Forest was chosen partly because it overlaps least with the palette's first series colours (blue, orange), so the chrome doesn't read as a series. Chart titles are larger (`text-xl`) and wrap sooner in narrow panes.
+
+## D-055 · 2026-09-30 · Layout from phone to desktop
+
+**Context:** The chart and chat sat side by side only from 1024 px. Below that, the chat came under the chart with a fixed minimum height, so on a phone the input was a long scroll away.
+**Decision:**
+- **From 768 px (`md`):** side by side, chart 3 : chat 2, with the chat at least 18rem wide. The page fits the screen (`h-dvh`) and each pane scrolls on its own.
+- **Below 768 px:** the page scrolls normally, chart first and messages below. The chat input is pinned to the bottom of the screen, with the safe-area inset under it, and the page leaves room for it.
+- Squeezing both panes into one phone screen was rejected: a chart is about 480 px tall, so it would have been cropped to a scrolling window.
+- `viewport.interactiveWidget: "resizes-content"`, so on browsers that support it the on-screen keyboard shrinks the layout rather than covering the input. Zoom is not restricted.
+- `color-scheme` follows the theme, so native controls such as the dataset select are dark in dark mode.
+**Consequences:** Checked at 375, 768 and 1280 px, with no horizontal scroll. On a phone, a reply lands below the chart; the status line reads it out, and the chart it drew is at the top.
+
+## D-056 · 2026-09-30 · One focus style
+
+**Context:** Each control set its own focus outline, in the foreground colour, and the chat textarea used `:focus` rather than `:focus-visible`. A new control could easily miss it.
+**Decision:** One rule in the base layer of `globals.css`: `:focus-visible` gets a 2px outline in `--focus` (the accent), offset by 2px. The per-element outline classes are gone. The upload button's label keeps `peer-focus-visible`, as focus lands on the visually hidden file input.
+**Consequences:** Every focusable element gets the ring by default, including ones added later. A utility can still override it where needed.
+
+## D-057 · 2026-09-30 · Accessibility audit with axe
+
+**Context:** M5's accessibility pass needed an automated check as well as a manual one.
+**Decision:**
+- **In the browser, by hand:** axe-core (loaded from cdnjs into the running dev app) on the first screen, the empty workspace, a drawn chart, the table view and the open confirm dialog, in both themes. No violations were found. Axe marked a few checks as needing review, where it can't measure contrast: text in the SVG, and elements under the dev-only Next badge. These were checked by hand, and all text passes AA in both themes. The lowest pairs are muted text on the chat surface (5.0:1) and tick labels (5.4:1).
+- **Fixed:** the chat placeholder used the browser default (about 3.4:1) and now uses `--muted`.
+- **In the test suite:** `axe-core` as a dev dependency, run directly with `axe.run` in `studio.test.tsx` (the first screen and workspace) and `chart-area.test.tsx` (no chart, a chart, the table view and the empty state). Colour contrast is off there, as jsdom lays nothing out. `vitest-axe` was not added, as it only supplies a matcher and hasn't been maintained since 0.1.0.
+**Consequences:** A missing label or a broken ARIA attribute fails `pnpm test`; a test run with the dataset picker's label removed failed as expected. Contrast needs the browser check whenever a colour changes. A VoiceOver pass by a person is still worthwhile; it was not run here.

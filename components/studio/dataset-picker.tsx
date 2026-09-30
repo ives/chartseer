@@ -25,7 +25,7 @@ export function DatasetPicker({ value, upload, onChange }: DatasetPickerProps) {
         onChange={(event) => {
           if (event.target.value !== UPLOAD) onChange(event.target.value as DatasetId);
         }}
-        className="max-w-[16rem] rounded-md border border-border bg-background px-2 py-1 focus-visible:outline-2 focus-visible:outline-foreground"
+        className="max-w-[16rem] rounded-md border border-border bg-background px-2 py-1"
       >
         {upload !== null && <option value={UPLOAD}>{upload}</option>}
         {Object.values(datasets).map((meta: BundledDataset) => (
