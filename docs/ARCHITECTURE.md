@@ -175,14 +175,14 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - **`lib/`:** Vitest unit tests for schema, validation, inference and `prepareChartData`. A test asserts that every example spec passes both validation layers.
 - **Charts:** React Testing Library for structure and accessible text, not pixels. Visual checks happen on a dev-only gallery page that renders every example spec.
-- **The model:** no live model calls in the test suite. A small script run by hand sends ~10 prompts against the demo data and reports how many produce valid specs first time.
+- **The model:** no live model calls in the test suite. `pnpm check-prompts`, run by hand, sends 24 requests through `lib/ai` against the demo data and reports how many produce valid specs first time, with tokens and response times. Full results go to `scripts/reports/` (git-ignored). Results in D-037.
 
 ## 13. Milestones
 
 - [x] **M0 — Foundations:** scaffold, add `typecheck` and `test` scripts, deploy the empty app to Vercel, commit these docs.
 - [x] **M1 — The contract:** `ChartSpec` schema, semantic validation, 4–6 hand-written example specs, tests.
 - [x] **M2 — Rendering without AI:** CSV parsing, column inference, `prepareChartData`, chart frame, four renderers, gallery page.
-- [ ] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
+- [x] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
 - [ ] **M4 — Refinement and states:** follow-up edits, undo, CSV upload in the UI, error and empty states.
 - [ ] **M5 — Polish:** dark mode, accessibility pass, motion, responsive layout.
 - [ ] **M6 — Ship:** rate limiting, README, demo recording.
@@ -191,8 +191,8 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - ~~Which two demo datasets?~~ Settled: TfL Santander Cycles and Gelateria Nebbia (D-016, `docs/DATA.md`).
 - **Large scatter plots.** Measured in M2 (D-030): the 25,132-point bikes map draws in SVG in about 0.4 s, but a resize takes about 0.5 s per width and its table view about 2 s. Kept as SVG for now. Decide whether to switch to canvas, sample, or cap the table before M5.
-- Is one validation retry enough, or does the prompt-check script suggest two?
-- ~~**Tool schema size.**~~ Settled for now: the cached prefix of tools, rules and dataset is about 10,200 tokens, and later turns read it from cache (D-033).
+- ~~Is one validation retry enough?~~ Settled: yes. The prompt check found every spec valid first time, and no retry was needed in 24 cases (D-037).
+- ~~**Tool schema size.**~~ Settled: the schema is 7,561 tokens, about 74% of the cached prefix. 94% of input tokens are read from cache, so it costs little per turn and is left as it is (D-038).
 - **Attribution and sampling are the app's job.** The TfL attribution and the bike sample ratio (1 in 30.8) must be shown by the app wherever the bikes dataset appears, not left to the model's subtitles, which it may omit or get wrong.
 - **Dark mode (M5).** Charts follow the page theme, with no white panel behind them. Consider a subtly raised panel behind each chart and fainter gridlines. Any future export or download is always light-themed, whatever the page theme.
 - **Locale formats in uploads.** Column inference doesn't yet recognise UK-style dates (`24/09/2026`) or numbers with thousands separators (`1,234`); they come through as categories (D-019). Decide in M4, when uploads arrive.

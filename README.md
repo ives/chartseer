@@ -42,6 +42,7 @@ pnpm test            # vitest run
 pnpm typecheck       # next typegen && tsc --noEmit
 pnpm lint            # eslint
 pnpm try-spec <file> # run parseSpec on a { dataset, spec } JSON file
+pnpm check-prompts   # live check: 24 requests through the model, report in scripts/reports/
 ```
 
 `try-spec` is the quickest way to check a hand-written spec against a demo dataset. Samples live in `scripts/specs/`:
@@ -68,7 +69,7 @@ lib/ai/               Model selection, system prompt, tool definition. Server-on
 components/charts/    D3 renderers.
 components/chat/      Chat UI.
 docs/                 Architecture, decisions log, dataset notes.
-scripts/              Dataset builders and the try-spec checker.
+scripts/              Dataset builders, the try-spec checker and the prompt check.
 ```
 
 ## Further reading

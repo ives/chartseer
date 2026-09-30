@@ -8,15 +8,19 @@ import { type DatasetSummary, type ParseResult, RenderChartInput, parseSpec } fr
 // The options match the SDK's own conversion of Zod schemas. Zod's JSON Schema
 // type differs from the SDK's in details the draft-7 output doesn't use, such
 // as a boolean exclusiveMaximum, hence the cast.
-const inputSchema = jsonSchema<unknown>(
-  z.toJSONSchema(RenderChartInput, { target: "draft-7", io: "input" }) as Parameters<typeof jsonSchema>[0],
-);
+// Exported so scripts/check-prompts.ts can count exactly what the model is sent.
+export const RENDER_CHART_SCHEMA = z.toJSONSchema(RenderChartInput, { target: "draft-7", io: "input" }) as Parameters<
+  typeof jsonSchema
+>[0];
+export const RENDER_CHART_DESCRIPTION =
+  "Draw a chart. Pass a complete spec. Returns { ok: true, spec } once it is drawn, or { ok: false, errors } listing what to fix.";
+
+const inputSchema = jsonSchema<unknown>(RENDER_CHART_SCHEMA);
 
 // Created per request, so parseSpec checks against that request's dataset.
 export function createRenderChartTool(dataset: DatasetSummary) {
   return tool({
-    description:
-      "Draw a chart. Pass a complete spec. Returns { ok: true, spec } once it is drawn, or { ok: false, errors } listing what to fix.",
+    description: RENDER_CHART_DESCRIPTION,
     inputSchema,
     execute: async (input): Promise<ParseResult> => {
       if (!isSpecEnvelope(input)) {

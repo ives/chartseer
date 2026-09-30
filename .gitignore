@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# prompt-check reports (pnpm check-prompts)
+/scripts/reports/
+
 # next.js
 /.next/
 /out/

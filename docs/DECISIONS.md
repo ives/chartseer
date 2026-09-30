@@ -273,3 +273,39 @@ The gallery's per-chart readout (React `Profiler`, then the next frame plus a ta
 **Context:** The user should see a short, friendly message for rate limits, an overloaded model, or the 503 switch, never provider details.
 **Decision:** The route passes `chatErrorCode` to `toUIMessageStream({ onError })`. It unwraps the SDK's `RetryError` and maps status 429 to `rate_limited`, 529 to `overloaded`, and anything else to `failed`, so errors inside the stream reach the client only as that code. HTTP errors (503, 400, a future 429) reach `useChat` as an `APICallError` with the status. `friendlyError` in `components/chat/error-message.ts` turns either kind into one sentence. The chat shows it with a "Try again" button that regenerates the reply.
 **Consequences:** The wording lives in one tested function. When rate limiting arrives in M6, a 429 from our own route already has a message.
+
+## D-037 · 2026-09-30 · Prompt checks: one retry is enough for now
+
+**Context:** ARCHITECTURE §12 promised a hand-run check of how often the model produces a valid spec, and §14 asked whether one validation retry is enough.
+**Decision:** `pnpm check-prompts` (`scripts/check-prompts.ts`) sends 24 requests through `streamChart`, not HTTP, against summaries inferred from the real CSVs. There are 12 per dataset: 4 plain, 3 refinements of an example spec, 2 vague questions, a misspelt value, an impossible request and an off-topic message. For each case it records the outcome (valid first time, valid after retry, failed, or no chart), any `parseSpec` errors, the tokens used and the response time. It prints a table and writes the full results to `scripts/reports/` (git-ignored). It's a report, not a test, and never runs in `pnpm test`.
+**First run** (2026-09-30, `claude-sonnet-5`):
+- **Validity:** every one of the 20 cases that drew a chart was valid first time. No retries, no failures, and all 24 expectations met.
+- **Refinements** changed only what was asked. "Make it stacked" turned the line chart into a stacked area chart. The titles stayed descriptive even when the example spec's own title stated a finding.
+- **Misspellings:** "Amalfi Lemno" and "Sohoo" were corrected by the model, not by validation.
+- **Requests it couldn't meet:** a pie chart became a bar chart, with an explanation. "Revenue per hire" and "just the summer" (the bikes data runs January to May) got prose and an offer of something close, with no chart.
+- **Response time:** median 2.7 s, p90 3.9 s.
+**Answer:** one retry is enough. It wasn't needed once in 24 cases, and a second would add latency for no measured gain. Re-run the check after any change to the rules, the schema descriptions or the model.
+**Consequences:** The explanation step after two failures is still untested live, so D-032's caveat stands. Follow-ups, not made here:
+- A category column with more than 50 values shows the model only 5 examples, and validation can't check filter values against it. "Sohoo" worked only because Soho was one of the examples; a typo of any other bike area would pass validation and draw an empty chart. M4's empty states should cover a filter that matches no rows.
+- Several example specs in `lib/spec/examples.ts` have titles that state findings, and the schema's `title` description says "States what the chart shows". Both contradict the prompt's rule. The model followed the prompt in every case here.
+
+## D-038 · 2026-09-30 · Tool schema size and caching, measured
+
+**Context:** ARCHITECTURE §14 asked whether the size of `RenderChartInput`'s schema needs attention once caching is in place (D-033).
+**Measured** with Anthropic's free `count_tokens`, each part as the difference between two counts:
+- tool schema: 7,561 tokens, including Anthropic's tool-use overhead (18.9 KB of JSON Schema)
+- rules: 486 tokens
+- dataset summary: 2,215 tokens for gelato, 3,368 for bikes
+The schema is about 74% of gelato's cached prefix of about 10,200 tokens, and about 67% of bikes' 11,300.
+**Caching works as designed.**
+- Across the 24-call run, 94% of input tokens were cache reads.
+- Each dataset's first call wrote the cache.
+- The first bikes call read 7,979 tokens (tools and rules, cached by the gelato calls just before) and wrote only its 3,367-token dataset part. The two breakpoints behave independently.
+- Every later call read the whole prefix.
+**Decision:** don't trim the schema.
+- Once cached, the prefix is billed at about a tenth of the normal input rate, so the schema costs about 750 token-equivalents per turn.
+- Only an uncached first turn pays for it in full.
+- The tools and rules are the same for every visitor and every dataset, and the bundled dataset parts are too, so on a public demo any visit within the five-minute cache window shares them.
+- An uncached first call took 2.7 s against a median of 2.7 s overall, so latency isn't affected either.
+- Trimming descriptions would risk the 100% first-time validity measured in D-037 for a small saving.
+**Consequences:** Revisit if traffic is so sparse that most requests miss the five-minute cache, which M6's cost figures will show, or if the schema grows. `lib/ai/tools.ts` exports `RENDER_CHART_SCHEMA` and `RENDER_CHART_DESCRIPTION`, so `pnpm check-prompts` counts exactly what the model is sent.
