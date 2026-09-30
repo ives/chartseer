@@ -3,7 +3,7 @@
 // Also measures the tool schema, rules and dataset summaries in tokens.
 //
 // Usage: pnpm check-prompts
-// Makes about 28 live model calls; the token counts are free. Reads
+// Makes about 29 live model calls; the token counts are free. Reads
 // ANTHROPIC_API_KEY from .env.local. Never runs in the test suite.
 // Full results go to scripts/reports/ (git-ignored).
 //
@@ -102,17 +102,33 @@ const CASES: Case[] = [
     kind: "upload",
     prompt: "Takings for the first half of March only",
     expect: "chart",
-    // ISO bounds, although the file's dates are DD/MM/YYYY.
+    // ISO bounds, although the file's dates are DD/MM/YYYY. "First half"
+    // of a 31-day month may reasonably end on the 14th, 15th or 16th.
     check: (spec) => {
       const date = (spec.filters ?? []).filter((f) => f.field === "date");
       const bound = (ops: string[], values: string[]) => date.some((f) => ops.includes(f.op) && "value" in f && values.includes(String(f.value)));
-      return bound(["gte", "gt"], ["2025-03-01", "2025-02-28"]) && bound(["lte", "lt"], ["2025-03-15", "2025-03-16"]);
+      return (
+        bound(["gte", "gt"], ["2025-03-01", "2025-02-28"]) &&
+        bound(["lte", "lt"], ["2025-03-14", "2025-03-15", "2025-03-16", "2025-03-17"])
+      );
     },
   },
 
   { dataset: "bikes", kind: "plain", prompt: "Journeys by hour of day, weekdays against weekends", expect: "chart" },
   { dataset: "bikes", kind: "plain", prompt: "The 10 busiest start areas", expect: "chart" },
   { dataset: "bikes", kind: "plain", prompt: "Map the start stations", expect: "chart" },
+  // A starter chip (D-045, D-051): one point per day, two measures.
+  {
+    dataset: "bikes",
+    kind: "plain",
+    prompt: "Daily journeys against median hire length, weekdays and weekends",
+    expect: "chart",
+    check: (spec) =>
+      spec.type === "scatter" &&
+      spec.per?.field === "date" &&
+      [spec.x, spec.y].some((a) => a.aggregate === "count") &&
+      [spec.x, spec.y].some((a) => a.field === "duration_min" && a.aggregate !== undefined && a.aggregate !== "count"),
+  },
   { dataset: "bikes", kind: "plain", prompt: "Median hire length by bike type", expect: "chart" },
   { dataset: "bikes", kind: "refinement", prompt: "Split it by bike type instead", current: "bikes-hourly-by-day-type", expect: "chart" },
   { dataset: "bikes", kind: "refinement", prompt: "Horizontal, top 5 only", current: "bikes-busiest-areas", expect: "chart" },

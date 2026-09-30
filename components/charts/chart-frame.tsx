@@ -1,10 +1,12 @@
 "use client";
 
-import { type ReactNode, type RefObject, useEffect, useId, useRef, useState } from "react";
+import { type PointerEvent, type ReactNode, type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ScaleBand, ScaleLinear, ScaleLogarithmic, ScalePoint, ScaleTime } from "d3-scale";
 import type { DatasetMeta } from "@/lib/data/datasets";
 import { bucketTicks, formatBuckets, isoToUtcDate } from "@/lib/data/dates";
 import type { TimeUnit } from "@/lib/spec";
+import { ChartTooltip } from "./chart-tooltip";
+import type { TooltipContent } from "./tooltip-content";
 
 // One axis of the plot. Gridlines are drawn only where `grid` is set, which
 // renderers use for the value axis (D-022). With a time unit, ticks fall on
@@ -19,6 +21,11 @@ export type Axis =
 export type Axes = { x: Axis; y: Axis };
 export type Inner = { width: number; height: number };
 export type LegendItem = { label: string; color: string };
+// The pointer, in pixels within the plot area.
+export type Pointer = { x: number; y: number };
+// What the pointer is over: the tooltip's content and a mark drawn on the plot
+// to show which values it describes (D-052).
+export type Hover = { content: TooltipContent; marker: ReactNode };
 
 type ChartFrameProps = {
   title: string;
@@ -36,6 +43,8 @@ type ChartFrameProps = {
   // Scales depend on the plot's size, which depends on the measured width.
   axes: (inner: Inner) => Axes;
   children: (axes: Axes, inner: Inner) => ReactNode;
+  // Hit-tests the pointer against the chart; null when it is over nothing.
+  hover?: (pointer: Pointer, axes: Axes, inner: Inner) => Hover | null;
 };
 
 type Tick = { offset: number; label: string };
@@ -48,14 +57,15 @@ const LINE_HEIGHT = 14;
 const MIN_LEFT = 32;
 const MAX_LEFT_SHARE = 0.4;
 
-export function ChartFrame({ title, subtitle, legend, dataset, note, description, table, height, axes, children }: ChartFrameProps) {
+export function ChartFrame({ title, subtitle, legend, dataset, note, description, table, height, axes, children, hover }: ChartFrameProps) {
   const titleId = useId();
   const descriptionId = useId();
   const [ref, width] = useElementWidth<HTMLDivElement>();
   const [showTable, setShowTable] = useState(false);
 
   return (
-    <figure className="flex flex-col gap-3">
+    // In dark mode the panel is subtly raised; in light mode it is transparent (D-050).
+    <figure className="flex flex-col gap-3 rounded-lg bg-(--chart-panel) p-3">
       <figcaption className="flex flex-col gap-1">
         <h2 id={titleId} className="text-base font-semibold">
           {title}
@@ -93,9 +103,9 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, description
       </div>
       {showTable && table}
       {/* Hidden rather than unmounted, so its ResizeObserver stays attached. */}
-      <div ref={ref} hidden={showTable} className="w-full">
+      <div ref={ref} hidden={showTable} className="relative w-full">
         {width > 0 && !showTable && (
-          <Plot width={width} height={height} titleId={titleId} descriptionId={descriptionId} axes={axes}>
+          <Plot width={width} height={height} titleId={titleId} descriptionId={descriptionId} axes={axes} hover={hover}>
             {children}
           </Plot>
         )}
@@ -116,21 +126,34 @@ function Plot({
   descriptionId,
   axes,
   children,
-}: Pick<ChartFrameProps, "height" | "axes" | "children"> & { width: number; titleId: string; descriptionId: string }) {
-  const innerHeight = Math.max(0, height - MARGIN.top - MARGIN.bottom);
-  // y ticks don't depend on the width, so a provisional layout sizes the left margin.
-  const provisional = axes({ width: Math.max(0, width - MIN_LEFT - MARGIN.right), height: innerHeight });
-  const maxLeft = Math.floor(width * MAX_LEFT_SHARE);
-  const longest = Math.max(0, ...ticksFor(provisional.y, innerHeight, "y").map((t) => t.label.length));
-  const left = Math.min(maxLeft, Math.max(MIN_LEFT, longest * CHAR_WIDTH + TICK_GAP));
-  const maxChars = Math.floor((left - TICK_GAP) / CHAR_WIDTH);
-
-  const inner = { width: Math.max(0, width - left - MARGIN.right), height: innerHeight };
-  const scales = axes(inner);
-  const xTicks = ticksFor(scales.x, inner.width, "x");
-  const yTicks = ticksFor(scales.y, inner.height, "y");
+  hover,
+}: Pick<ChartFrameProps, "height" | "axes" | "children" | "hover"> & { width: number; titleId: string; descriptionId: string }) {
+  // Memoised on the size and the renderer's props, so a pointer move redraws
+  // only the hover marker and the tooltip, not every mark.
+  const { left, maxChars, inner, scales, xTicks, yTicks } = useMemo(() => {
+    const innerHeight = Math.max(0, height - MARGIN.top - MARGIN.bottom);
+    // y ticks don't depend on the width, so a provisional layout sizes the left margin.
+    const provisional = axes({ width: Math.max(0, width - MIN_LEFT - MARGIN.right), height: innerHeight });
+    const maxLeft = Math.floor(width * MAX_LEFT_SHARE);
+    const longest = Math.max(0, ...ticksFor(provisional.y, innerHeight, "y").map((t) => t.label.length));
+    const left = Math.min(maxLeft, Math.max(MIN_LEFT, longest * CHAR_WIDTH + TICK_GAP));
+    const inner = { width: Math.max(0, width - left - MARGIN.right), height: innerHeight };
+    const scales = axes(inner);
+    return {
+      left,
+      maxChars: Math.floor((left - TICK_GAP) / CHAR_WIDTH),
+      inner,
+      scales,
+      xTicks: ticksFor(scales.x, inner.width, "x"),
+      yTicks: ticksFor(scales.y, inner.height, "y"),
+    };
+  }, [width, height, axes]);
+  const marks = useMemo(() => children(scales, inner), [children, scales, inner]);
+  const [pointer, setPointer] = usePointer();
+  const hovered = pointer && hover ? hover(pointer, scales, inner) : null;
 
   return (
+    <>
     <svg width={width} height={height} role="img" aria-labelledby={titleId} aria-describedby={descriptionId} className="block overflow-visible text-xs">
       <g transform={`translate(${left},${MARGIN.top})`}>
         {isGridded(scales.y) &&
@@ -142,7 +165,23 @@ function Plot({
             <line key={`gx${t.offset}`} x1={t.offset} x2={t.offset} y1={0} y2={inner.height} style={gridStyle(t)} />
           ))}
 
-        {children(scales, inner)}
+        {marks}
+        {hovered && <g style={{ pointerEvents: "none" }}>{hovered.marker}</g>}
+        {hover && (
+          // Transparent, over the marks, so a line can be read anywhere along it.
+          <rect
+            data-hover-layer=""
+            width={inner.width}
+            height={inner.height}
+            fill="transparent"
+            onPointerMove={(event) => setPointer(event)}
+            onPointerDown={(event) => setPointer(event)}
+            onPointerLeave={(event) => {
+              // A tap's pointer leaves as soon as the finger lifts; tapping elsewhere clears it.
+              if (event.pointerType !== "touch") setPointer(null);
+            }}
+          />
+        )}
 
         {!isGridded(scales.y) && (
           <line x1={0} x2={inner.width} y1={inner.height} y2={inner.height} style={{ stroke: "var(--chart-axis)" }} />
@@ -167,7 +206,38 @@ function Plot({
         </text>
       </g>
     </svg>
+    {hovered && pointer && (
+      <ChartTooltip content={hovered.content} x={pointer.x + left} y={pointer.y + MARGIN.top} width={width} />
+    )}
+    </>
   );
+}
+
+// The pointer over the plot area. Browsers already deliver pointermove at
+// most once a frame, so it needs no throttle. It clears on Escape and on a
+// tap or click anywhere else.
+function usePointer(): [Pointer | null, (event: PointerEvent<SVGRectElement> | null) => void] {
+  const [pointer, setPointer] = useState<Pointer | null>(null);
+
+  useEffect(() => {
+    if (!pointer) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setPointer(null);
+    const onDown = (event: globalThis.PointerEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest("[data-hover-layer]")) setPointer(null);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown);
+    };
+  }, [pointer]);
+  const update = (event: PointerEvent<SVGRectElement> | null) => {
+    if (!event) return setPointer(null);
+    const box = event.currentTarget.getBoundingClientRect();
+    setPointer({ x: event.clientX - box.left, y: event.clientY - box.top });
+  };
+  return [pointer, update];
 }
 
 const tickStyle = { fill: "var(--chart-muted)", fontVariantNumeric: "tabular-nums" };

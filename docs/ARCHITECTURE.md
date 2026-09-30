@@ -160,13 +160,15 @@ All errors are collected, not just the first. A check that needs a missing colum
 - A shared **chart frame** handles margins, axes, legend, title and responsive sizing.
 - One renderer per chart type, selected by a switch on `spec.type` with an exhaustive `never` check.
 - React renders the SVG elements; D3 supplies scales, shape generators and ticks.
-- Colours are CSS variables, so light and dark themes need no JavaScript.
+- Colours are CSS variables, so light and dark themes need no JavaScript. Every light-mode series colour has at least 3:1 contrast; dark mode puts a subtly raised panel behind each chart (D-050). `/dev/gallery` can force either theme (D-049).
+- **Tooltips** (D-052): hovering or tapping shows the values under the pointer, with labels and units. Lines and areas snap to the nearest x value.
+- **Motion** (D-053): a refinement eases marks to their new places in 250 ms when they correspond, and crossfades otherwise. Nothing moves when the reader prefers reduced motion.
 
 ## 10. Accessibility
 
 - `describeChart(spec, data)` in `lib/data/describe.ts` produces a deterministic text summary of each chart: what is plotted, the range, and where the largest value is. It is the SVG's accessible description (`aria-describedby`). It lives in `lib/data`, not `lib/spec`, because it reads the prepared `ChartData` (D-029).
 - Every chart has a "View as table" toggle, which swaps the plot for an HTML table of the same `ChartData`: a caption, column and row headers, missing values read as "no data", and partial buckets marked. The title, notes and attribution stay.
-- Colour is never the only way to tell series apart; the legend and tooltips carry labels.
+- Colour is never the only way to tell series apart; the legend and tooltips carry labels. Tooltips are for pointers only and hidden from assistive technology; the table view has every value they show (D-052).
 - Everything is reachable by keyboard.
 
 ## 11. Scope fence
@@ -196,9 +198,10 @@ All errors are collected, not just the first. A check that needs a missing colum
 ## 14. Open questions
 
 - ~~Which two demo datasets?~~ Settled: TfL Santander Cycles and Gelateria Nebbia (D-016, `docs/DATA.md`).
-- **Large scatter plots.** Measured in M2 (D-030): the 25,132-point bikes map draws in SVG in about 0.4 s, but a resize takes about 0.5 s per width and its table view about 2 s. Kept as SVG for now. Decide whether to switch to canvas, sample, or cap the table before M5.
+- **Large scatter plots.** The 25,000-point map is no longer an example (D-051), but a user can still ask for one. Measured in M2 (D-030): the 25,132-point bikes map draws in SVG in about 0.4 s, but a resize takes about 0.5 s per width and its table view about 2 s. Kept as SVG for now. Decide whether to switch to canvas, sample, or cap the table before M5.
 - ~~Is one validation retry enough?~~ Settled: yes. The prompt check found every spec valid first time, and no retry was needed in 24 cases (D-037).
 - ~~**Tool schema size.**~~ Settled: the schema is 7,561 tokens, about 74% of the cached prefix. 94% of input tokens are read from cache, so it costs little per turn and is left as it is (D-038).
 - ~~**Attribution and sampling are the app's job.**~~ Settled: the chart frame, both empty states and the first screen show the attribution and the bike sample ratio (1 in 30.8), never left to the model's subtitles (D-045).
-- **Dark mode (M5).** Charts follow the page theme, with no white panel behind them. Consider a subtly raised panel behind each chart and fainter gridlines. Any future export or download is always light-themed, whatever the page theme.
+- ~~**Dark mode (M5).**~~ Settled: charts follow the page theme, on a subtly raised panel in dark mode, with fainter gridlines in both (D-050). Any future export or download is always light-themed; `data-theme` can force it (D-049).
+- **Gaps on time axes.** A missing day or period inside the range (Christmas Day on a daily gelato line) is joined across, not shown as a gap. Gap-filling buckets when `x.timeUnit` is set would fix it (D-051).
 - ~~**Locale formats in uploads.**~~ Settled: comma thousands, £/$/€ and % are read as numbers, and slash dates are read day- or month-first per column, with a switch when a column is ambiguous. Decimal commas are not supported (D-042).

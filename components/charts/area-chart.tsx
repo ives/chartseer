@@ -1,13 +1,15 @@
 import type { ReactNode } from "react";
 import { scaleLinear } from "d3-scale";
-import { area, stack } from "d3-shape";
+import { stack } from "d3-shape";
 import type { ChartSpec } from "@/lib/spec";
 import type { DatasetMeta } from "@/lib/data/datasets";
 import type { CartesianData } from "@/lib/data/prepare";
 import { AnnotationLayer } from "./annotation-layer";
-import { type Point, edgePaths, locate, seriesPoints, xAxis } from "./cartesian";
+import { AreaMarks } from "./area-marks";
+import { locate, seriesPoints, xAxis } from "./cartesian";
 import { type Axes, ChartFrame, type Inner } from "./chart-frame";
 import { seriesColor } from "./colors";
+import { snapHover } from "./snap-hover";
 import { partialNote } from "./partial-note";
 import { valueDomain } from "./value-domain";
 
@@ -21,7 +23,6 @@ type AreaChartProps = {
 
 // One layer of the chart: its bottom and top edge at each x value, in data units.
 type Layer = { lower: (number | null)[]; upper: (number | null)[] };
-type FillPoint = Point & { lower: number };
 
 const HEIGHT = 360;
 
@@ -50,19 +51,18 @@ export function AreaChart({ spec, data, dataset, description, table }: AreaChart
       table={table}
       height={HEIGHT}
       axes={axes}
+      hover={(pointer, { x, y }, inner) =>
+        y.kind === "linear"
+          ? snapHover(data, x, pointer, inner, (series, index) => {
+              // A stacked area's dot sits on top of its layer.
+              if ((data.series[series]?.values[index] ?? null) === null) return null;
+              return y.scale(layers[series]?.upper[index] ?? 0);
+            })
+          : null
+      }
     >
       {({ x, y }, inner) => {
         const py = (value: number) => (y.kind === "linear" ? y.scale(value) : 0);
-        const shapes = layers.map((layer) =>
-          seriesPoints(data, layer.upper, x).map((p, j) => ({ ...p, lower: layer.lower[j] ?? 0 })),
-        );
-        const fill = (points: FillPoint[], defined: (p: FillPoint) => boolean) =>
-          area<FillPoint>()
-            .defined(defined)
-            .x((p) => p.x)
-            .y0((p) => py(p.lower))
-            .y1((p) => py(p.y ?? 0))(points) ?? undefined;
-        const present = (p: FillPoint) => p.y !== null;
         return (
           <>
             <AnnotationLayer
@@ -71,39 +71,19 @@ export function AreaChart({ spec, data, dataset, description, table }: AreaChart
               axis="x"
               inner={inner}
             />
-            {shapes.map((points, i) => {
-              const color = seriesColor(i);
-              const key = String(data.series[i]?.key ?? i);
-              if (stacked) {
-                // Partial buckets (D-026) are filled lighter beneath the full-strength
-                // fill, which leaves them out. A surface line separates the layers.
-                const edge = edgePaths(points, py);
-                return (
-                  <g key={key}>
-                    {data.x.partial && (
-                      <path d={fill(points, present)} data-partial="" style={{ fill: color, opacity: "var(--chart-partial-opacity)" }} />
-                    )}
-                    <path d={fill(points, (p) => present(p) && !p.partial)} style={{ fill: color }} />
-                    <path d={`${edge.solid}${edge.dashed}` || undefined} style={{ fill: "none", stroke: "var(--background)", strokeWidth: 2 }} />
-                  </g>
-                );
-              }
-              const { solid, dashed } = edgePaths(points, py);
-              const stroke = { fill: "none", stroke: color, strokeWidth: 2, strokeLinejoin: "round", strokeLinecap: "round" } as const;
-              return (
-                <g key={key}>
-                  <path d={fill(points, present)} style={{ fill: color, opacity: "var(--chart-area-opacity)" }} />
-                  <path d={solid || undefined} style={stroke} />
-                  {dashed && <path d={dashed} data-partial="" style={{ ...stroke, strokeDasharray: "var(--chart-partial-dash)" }} />}
-                  {/* A value between two gaps has no area, so it gets a dot. */}
-                  {points.map((p, j) =>
-                    p.y !== null && points[j - 1]?.y == null && points[j + 1]?.y == null ? (
-                      <circle key={j} cx={p.x} cy={py(p.y)} r={2.5} style={{ fill: color }} />
-                    ) : null,
-                  )}
-                </g>
-              );
-            })}
+            <AreaMarks
+              stacked={stacked}
+              trigger={data}
+              layers={layers.map((layer, i) => ({
+                key: String(data.series[i]?.key ?? i),
+                color: seriesColor(i),
+                points: seriesPoints(data, layer.upper, x).map((p, j) => ({
+                  ...p,
+                  y: p.y === null ? null : py(p.y),
+                  lower: py(layer.lower[j] ?? 0),
+                })),
+              }))}
+            />
           </>
         );
       }}

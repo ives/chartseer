@@ -4,9 +4,11 @@ import type { ChartSpec } from "@/lib/spec";
 import type { DatasetMeta } from "@/lib/data/datasets";
 import type { CartesianData } from "@/lib/data/prepare";
 import { AnnotationLayer } from "./annotation-layer";
-import { edgePaths, locate, seriesPoints, xAxis } from "./cartesian";
+import { locate, seriesPoints, xAxis } from "./cartesian";
 import { type Axes, ChartFrame, type Inner } from "./chart-frame";
 import { seriesColor } from "./colors";
+import { LineMarks } from "./line-marks";
+import { snapHover } from "./snap-hover";
 import { partialNote } from "./partial-note";
 import { valueDomain } from "./value-domain";
 
@@ -48,6 +50,14 @@ export function LineChart({ spec, data, dataset, description, table }: LineChart
       table={table}
       height={HEIGHT}
       axes={axes}
+      hover={(pointer, { x, y }, inner) =>
+        y.kind === "linear"
+          ? snapHover(data, x, pointer, inner, (series, index) => {
+              const value = data.series[series]?.values[index] ?? null;
+              return value === null ? null : y.scale(value);
+            })
+          : null
+      }
     >
       {({ x, y }, inner) => {
         const py = (value: number) => (y.kind === "linear" ? y.scale(value) : 0);
@@ -59,28 +69,14 @@ export function LineChart({ spec, data, dataset, description, table }: LineChart
               axis="x"
               inner={inner}
             />
-            {data.series.map((s, i) => {
-              const points = seriesPoints(data, s.values, x);
-              const color = seriesColor(i);
-              const stroke = { fill: "none", stroke: color, strokeWidth: 2, strokeLinejoin: "round", strokeLinecap: "round" } as const;
-              // Partial buckets (D-026) are left out of the solid line and
-              // joined to their neighbours by a dashed one.
-              const { solid, dashed } = edgePaths(points, py);
-              return (
-                <g key={String(s.key)}>
-                  <path d={solid || undefined} style={stroke} />
-                  {dashed && (
-                    <path d={dashed} data-partial="" style={{ ...stroke, strokeDasharray: "var(--chart-partial-dash)" }} />
-                  )}
-                  {/* A value between two gaps has no line segment, so it gets a dot. */}
-                  {points.map((p, j) =>
-                    p.y !== null && points[j - 1]?.y == null && points[j + 1]?.y == null ? (
-                      <circle key={j} cx={p.x} cy={py(p.y)} r={2.5} style={{ fill: color }} />
-                    ) : null,
-                  )}
-                </g>
-              );
-            })}
+            <LineMarks
+              series={data.series.map((s, i) => ({
+                key: String(s.key),
+                color: seriesColor(i),
+                points: seriesPoints(data, s.values, x).map((p) => ({ ...p, y: p.y === null ? null : py(p.y) })),
+              }))}
+              trigger={data}
+            />
           </>
         );
       }}

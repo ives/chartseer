@@ -30,7 +30,7 @@ export const datasets: Record<"bikes" | "gelato", BundledDataset> = {
       "Journeys by hour of day, weekdays against weekends",
       "The 10 busiest start areas",
       "Median hire length by bike type",
-      "Map the start stations",
+      "Daily journeys against median hire length, weekdays and weekends",
     ],
     attribution:
       "Powered by TfL Open Data. Contains OS data © Crown copyright and database rights 2016 and Geomni UK Map data © and database rights 2019.",

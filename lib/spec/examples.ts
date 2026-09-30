@@ -33,16 +33,19 @@ export const examples: { id: string; dataset: DatasetSummary; spec: ChartSpec }[
     } satisfies ChartSpec,
   },
   {
-    id: "bikes-station-map",
+    // Two measures per day, which is what a scatter is for; it replaced a
+    // 25,000-point longitude/latitude map (D-051).
+    id: "bikes-daily-journeys-duration",
     dataset: bikesSummary,
     spec: {
       version: 1,
       type: "scatter",
-      title: "Where hires start",
-      subtitle: "Each point is a journey, placed at its start station",
-      x: { field: "start_lon", label: "Longitude" },
-      y: { field: "start_lat", label: "Latitude" },
-      group: { field: "bike_type" },
+      title: "Daily journeys against median hire length",
+      subtitle: "One point per day, weekdays and weekends",
+      per: { field: "date" },
+      x: { aggregate: "count", label: "Journeys" },
+      y: { field: "duration_min", aggregate: "median", label: "Median duration (min)" },
+      group: { field: "day_type" },
     } satisfies ChartSpec,
   },
   {

@@ -166,7 +166,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 ## D-024 · 2026-09-24 · Series palette
 
 **Context:** The schema allows up to 12 series, and colours must come from CSS so dark mode needs no JavaScript (D-008).
-**Decision:** `--chart-1` … `--chart-12` in `app/globals.css`, assigned in series order. Slots 1–8 are a validated categorical palette with separate light and dark steps; slots 9–12 (teal, brown, plum, olive) extend it, using the same values in both modes. The whole set passes lightness, chroma, adjacent-pair colour-blind separation and normal-vision checks against the app's actual backgrounds (`#ffffff`, `#0a0a0a`). In light mode three slots (aqua, yellow, pink) sit below 3:1 contrast with the background.
+**Decision:** `--chart-1` … `--chart-12` in `app/globals.css`, assigned in series order. Slots 1–8 are a validated categorical palette with separate light and dark steps; slots 9–12 (teal, brown, plum, olive) extend it, using the same values in both modes. The whole set passes lightness, chroma, adjacent-pair colour-blind separation and normal-vision checks against the app's actual backgrounds (`#ffffff`, `#0a0a0a`). In light mode three slots (aqua, yellow, pink) sit below 3:1 contrast with the background. *Fixed in D-050.*
 **Consequences:** Colour is never the only identity channel: the legend always names each series, and the table view (§10) will carry the values. Past about eight series, neighbouring colours are distinguishable but not easily.
 
 ## D-025 · 2026-09-24 · Column labels
@@ -208,7 +208,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - **Log axes** are a new frame `Axis` kind. Ticks come from `scaleLog().ticks()`, keeping only those `tickFormat` labels (1, 2, 10, 20, 100 …). Both scatter axes have gridlines.
 - **Points** are 4px-radius circles in the group colour at `--chart-point-opacity` (0.5 light, 0.6 dark). The opacity is `fill-opacity` on each circle, so overlapping points build up density. There is no surface ring: at 25,000 points it would hide the density.
 - **Numeric axes only.** The contract allows only number columns on scatter axes. A date axis (e.g. duration against start time) would need a schema and validation change. Deferred until a real prompt asks for it.
-**Consequences:** Groups are drawn in order, so a later group covers an earlier one where points coincide. On the bikes station map, 25,132 hires fall on about 805 station positions, and Classic almost hides E-bike.
+**Consequences:** Groups are drawn in order, so a later group covers an earlier one where points coincide. On the bikes station map, 25,132 hires fall on about 805 station positions, and Classic almost hides E-bike. *Largest group now drawn first: D-050. The map example was replaced: D-051.*
 
 ## D-029 · 2026-09-24 · Accessible description and table view
 
@@ -230,7 +230,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 - The 25,132-row table: React render about 810 ms, painted after about 2.1 s.
 - `prepareChartData` runs outside the measured tree and is not included.
 The gallery's per-chart readout (React `Profiler`, then the next frame plus a task) stays in place, so this can be re-measured.
-**Consequences:** One-off rendering is acceptable; resizing and the table view are sluggish. Options, not yet chosen: canvas above a point threshold (this loses per-point DOM for hover); drawing each distinct position once (the map has about 805); debouncing width changes; paginating or capping the table. Revisit before M5's responsive and accessibility pass.
+**Consequences:** One-off rendering is acceptable; resizing and the table view are sluggish. Options, not yet chosen: canvas above a point threshold (this loses per-point DOM for hover); drawing each distinct position once (the map has about 805); debouncing width changes; paginating or capping the table. Revisit before M5's responsive and accessibility pass. *The 25,000-point map is no longer an example (D-051), so the gallery no longer draws it; a user can still ask for one.*
 
 ## D-031 · 2026-09-28 · Column labels travel in the dataset summary
 
@@ -468,4 +468,71 @@ It's read through `readCsv` and `inferDataset` with no meta, exactly as an uploa
 - **Market:** 3/3 valid first time, every check met. The March filter used `2025-03-01` to `2025-03-15`.
 - **Overall:** 28/28 expectations met; 23 valid first time, 1 after a retry, 4 prose replies as expected. The retry was "Map the start stations" (see D-045).
 - **Tokens:** the market summary is 744 tokens. Median response 3.0 s, p90 5.1 s. The first market call took 9.5 s, because it wrote that dataset's cache.
+
+## D-049 · 2026-09-30 · Forcing a theme in development
+
+**Context:** M5 needs screenshots and checks in both themes, but the dark theme followed only the system setting, which the tools in a session can't change.
+**Decision:** `html[data-theme="dark" | "light"]` overrides the system. The dark variables are declared twice in `app/globals.css`: under `@media (prefers-color-scheme: dark)` for `:root:not([data-theme="light"])`, and for `:root[data-theme="dark"]`. CSS can't share one block between a media query and a selector. `app/theme.test.ts` checks that the two blocks are identical. The only switch is on `/dev/gallery` (`theme-switch.tsx`); the app has no theme control. The gallery's one Tailwind `dark:` class became the `surface` token, so everything follows the override.
+**Consequences:** A dark-mode variable is added in two places, and the test fails if one is forgotten. The same override can force light for a future export (§14).
+
+## D-050 · 2026-09-30 · Palette contrast, fainter gridlines, a dark panel, scatter order
+
+**Context:** Parked items from D-024, D-028 and §14.
+**Decision:**
+- **Every light-mode series colour now has at least 3:1 contrast with white.** Slot 3 `#1baf7a` → `#22a775` (3.06), slot 4 `#eda100` → `#da7e00` (3.01) and slot 5 `#e87ba4` → `#d97696` (3.01).
+  - Each change is the lightest shade that reaches 3:1, within a few degrees of hue.
+  - A yellow dark enough for 3:1 becomes gold and sat too close to the olive under protanopia. So slot 12 moved from `#7f9500` to `#9c9900` (3.01) in light mode. Its dark-mode value is unchanged.
+- **Separation, checked against the other eleven slots** with CIE76 ΔE and Machado 2009 simulations:
+  - Normal vision: the worst pair is still 22.0 (slots 2 and 8).
+  - Deuteranopia: the worst pair is still 5.4 (slots 6 and 10).
+  - Protanopia: the worst pair goes from 6.6 to 5.4 (slots 4 and 12), matching the deuteranopia floor.
+  - Dark-mode colours are unchanged.
+- **Gridlines are a step fainter:** `#ecebe6` in light mode (was the border colour `#e1e0d9`) and `#232321` in dark mode (was `#2c2c2a`).
+- **Dark mode gets a subtly raised panel** (`--chart-panel: #121211`) behind each chart. Light mode keeps a transparent one, with the same padding, so layout doesn't shift.
+  - `--chart-gap` is whatever sits behind the marks: the page background in light mode, the panel in dark mode.
+  - Stacked-area separators and hover-dot rings use it, so they no longer show as seams on the panel.
+- **Scatter groups are drawn largest first,** so smaller groups sit on top (`drawOrder`). Colours and the legend keep the groups' own order.
+- **Render timing** exists only in the dev gallery's `Timed` wrapper, and `/dev/gallery` returns 404 in production. Nothing to change.
+
+## D-051 · 2026-09-30 · A scatter example that suits a scatter
+
+**Context:** The bikes scatter example was a longitude/latitude map of 25,000 points: a map drawn as a scatter, the slowest chart in the gallery (D-030), with one group hiding the other (D-028).
+**Decision:** It's replaced by `bikes-daily-journeys-duration`: one point per day, journeys started against median hire length, grouped by day type. Two real measures, 31 points (the sample covers 31 days), and a visible pattern: weekend days sit higher, with longer median hires for the number of journeys. The bikes starter chip "Map the start stations" became "Daily journeys against median hire length, weekdays and weekends". Starters must be measured (D-045), so it's a check-prompts case: valid first time, with the spec intended.
+**Consequences:** "Map the start stations" stays a check-prompts case: users can still ask for a map. The first chip no longer leads to the only chart that has needed a retry.
+**Christmas Day on the daily gelato line:** a daily line joins 24 December straight to 26 December. All shops are shut on Christmas Day, so it has no rows and no point, and the join reads as if there were sales that day. Buckets aren't gap-filled (D-021, D-026), so this applies to any missing day or period inside the range. A gap would be honest. With a `timeUnit`, the grain is known, so `prepareChartData` could add the missing buckets inside the requested range as null values: lines and areas then break, and the table says "no data". Not done here; it changes `prepareChartData` for every chart with a time unit, and it's a separate decision.
+
+## D-052 · 2026-09-30 · Tooltips
+
+**Context:** M5 asked for values on hover and tap, with readable labels, without hiding anything keyboard users need.
+**Decision:**
+- **`ChartFrame` owns the behaviour:**
+  - a transparent layer over the plot takes pointer events;
+  - a tap keeps its tooltip until the next tap elsewhere; Escape or leaving the plot closes it;
+  - the tooltip is placed beside the pointer and flips at the right edge.
+- **The plot is memoised on its size and props,** so a pointer move redraws only the hover mark and the tooltip, even over 25,000 points. Browsers already deliver `pointermove` at most once a frame, so there's no throttle. A `requestAnimationFrame` throttle was tried and dropped: it never fires in a hidden tab.
+- **Each renderer supplies a `hover` function** that hit-tests and returns content and a mark:
+  - lines and areas snap to the nearest x value, with a guide line and a dot per series (`snap-hover.tsx`);
+  - bars hit-test the same rectangles they draw (`rectsFor`), with an outline;
+  - scatters find the nearest point within 20 px, top-drawn groups first, with a ring.
+- **Content is pure** (`tooltip-content.ts`) and uses the table's formatting:
+  - the x value with its label ("Week commencing: 30 Dec 2024");
+  - the measure with its unit ("Sum of revenue (£)") and each series' value, "no data" where there's none;
+  - a stack's total;
+  - for scatters, the `per` value, both measures and the group;
+  - a note on partial buckets.
+- **Accessibility:** the tooltip is `aria-hidden`, and `pointer-events: none`, so it can't cover a control. It never opens from the keyboard. Everything it shows is in the table view (§10).
+**Consequences:** Hover needs a pointer. Keyboard and screen reader users get the same values from the table and the description.
+
+## D-053 · 2026-09-30 · Motion
+
+**Context:** A refinement replaced the chart instantly, which made it hard to see what changed. No animation library (a dependency), and nothing may move for readers who prefer reduced motion.
+**Decision:**
+- **`useTween`** (`use-tween.ts`) eases from what was last drawn to the new target in 250 ms (ease-out cubic) with `requestAnimationFrame`.
+  - It starts only when the data changes, not on a resize.
+  - It runs in a layout effect, so the first frame is painted from the old position.
+  - Bars (`BarMarks`), lines (`LineMarks`) and areas (`AreaMarks`) tween their pixel geometry against the new scales, and the axes switch at once. Bars are keyed by category and series, so a bar that stays moves and a new one fades in. Line and area points move point for point.
+- **`transitionKind`** (`motion.ts`) chooses a crossfade instead when marks don't correspond: a different chart type, bars turned on their side, a change of stacking, different x values or series on a line or area, or any scatter.
+  - `Chart` then keeps the old chart on top for 200 ms, fading out, while the new one fades in. The old one is `inert` and `aria-hidden`.
+- **Reduced motion:** `useReducedMotion` follows `prefers-reduced-motion`. When set, nothing tweens and nothing crossfades; the chart simply changes. It also assumes reduced motion on the server.
+**Consequences:** Tests drive the tween with fake animation frames. They check that the first frame after a change is the old one, that the chart settles within 300 ms, and that with reduced motion the new chart is final at once with no timers scheduled. The easing test fails if the tween is removed. An animation paused in a hidden tab finishes when the tab is shown again.
 

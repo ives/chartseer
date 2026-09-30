@@ -5,8 +5,10 @@ import type { Annotation, ChartSpec } from "@/lib/spec";
 import type { DatasetMeta } from "@/lib/data/datasets";
 import type { CartesianData } from "@/lib/data/prepare";
 import { AnnotationLayer, type Span } from "./annotation-layer";
+import { BarMarks } from "./bar-marks";
 import { type Axes, ChartFrame, type Inner } from "./chart-frame";
 import { seriesColor } from "./colors";
+import { barTooltip } from "./tooltip-content";
 import { partialNote } from "./partial-note";
 import { valueDomain } from "./value-domain";
 
@@ -20,6 +22,8 @@ type BarChartProps = {
 
 // One drawn bar or stacked segment, in data units along the value axis.
 type Segment = { category: number; series: number; from: number; to: number };
+// The same, in pixels, as drawn and as hit-tested.
+export type BarRect = { key: string; category: number; series: number; x: number; y: number; width: number; height: number; partial: boolean };
 
 const VERTICAL_HEIGHT = 360;
 const ROW_HEIGHT = 28;
@@ -65,20 +69,28 @@ export function BarChart({ spec, data, dataset, description, table }: BarChartPr
       table={table}
       height={height}
       axes={axes}
+      hover={(pointer, scales) => {
+        const hit = rectsFor(scales)?.find((r) => contains(r, pointer));
+        if (!hit) return null;
+        return {
+          content: barTooltip(data, hit.category, hit.series, stacked, seriesColor),
+          marker: (
+            <rect
+              x={hit.x - 1}
+              y={hit.y - 1}
+              width={hit.width + 2}
+              height={hit.height + 2}
+              style={{ fill: "none", stroke: "var(--foreground)", strokeWidth: 1.5 }}
+            />
+          ),
+        };
+      }}
     >
       {(scales, inner) => {
         const categoryAxis = horizontal ? scales.y : scales.x;
-        const valueAxis = horizontal ? scales.x : scales.y;
-        if (categoryAxis.kind !== "band" || valueAxis.kind !== "linear") return null;
+        const rects = rectsFor(scales);
+        if (categoryAxis.kind !== "band" || !rects) return null;
         const band = categoryAxis.scale;
-        const value = valueAxis.scale;
-
-        // Bars are capped in thickness and centred in their band; grouped bars
-        // sit side by side with a surface gap between them.
-        const groupThickness = Math.min(band.bandwidth(), MAX_THICKNESS * perBand + GAP * (perBand - 1));
-        const thickness = Math.max(1, (groupThickness - GAP * (perBand - 1)) / perBand);
-        const inset = (band.bandwidth() - groupThickness) / 2;
-
         return (
           <>
             <AnnotationLayer
@@ -87,45 +99,49 @@ export function BarChart({ spec, data, dataset, description, table }: BarChartPr
               axis={horizontal ? "y" : "x"}
               inner={inner}
             />
-            {segments.map((s) => {
-              const category = categories[s.category];
-              if (category === undefined) return null;
-              const across = (band(category) ?? 0) + inset + (stacked ? 0 : s.series * (thickness + GAP));
-              // Each stacked segment gives up GAP pixels at its far end.
-              const [a, b] = [value(s.from), value(s.to)];
-              const length = Math.max(0, Math.abs(b - a) - (stacked ? GAP : 0));
-              if (length === 0) return null;
-              const start = b >= a ? a : a - length;
-              // Partial buckets (D-026) are drawn lighter.
-              const partial = data.x.partial?.[s.category] ?? false;
-              const style = { fill: seriesColor(s.series), ...(partial && { opacity: "var(--chart-partial-opacity)" }) };
-              return horizontal ? (
-                <rect
-                  key={`${s.category}-${s.series}`}
-                  x={start}
-                  width={length}
-                  y={across}
-                  height={thickness}
-                  data-partial={partial ? "" : undefined}
-                  style={style}
-                />
-              ) : (
-                <rect
-                  key={`${s.category}-${s.series}`}
-                  x={across}
-                  width={thickness}
-                  y={b < a ? a - length : a}
-                  height={length}
-                  data-partial={partial ? "" : undefined}
-                  style={style}
-                />
-              );
-            })}
+            <BarMarks rects={rects} trigger={data} />
           </>
         );
       }}
     </ChartFrame>
   );
+
+  // Every bar and segment in pixels, for drawing and for hit-testing alike.
+  function rectsFor(scales: Axes): BarRect[] | null {
+    const categoryAxis = horizontal ? scales.y : scales.x;
+    const valueAxis = horizontal ? scales.x : scales.y;
+    if (categoryAxis.kind !== "band" || valueAxis.kind !== "linear") return null;
+    const band = categoryAxis.scale;
+    const value = valueAxis.scale;
+
+    // Bars are capped in thickness and centred in their band; grouped bars
+    // sit side by side with a surface gap between them.
+    const groupThickness = Math.min(band.bandwidth(), MAX_THICKNESS * perBand + GAP * (perBand - 1));
+    const thickness = Math.max(1, (groupThickness - GAP * (perBand - 1)) / perBand);
+    const inset = (band.bandwidth() - groupThickness) / 2;
+
+    return segments.flatMap((s) => {
+      const category = categories[s.category];
+      if (category === undefined) return [];
+      const across = (band(category) ?? 0) + inset + (stacked ? 0 : s.series * (thickness + GAP));
+      // Each stacked segment gives up GAP pixels at its far end.
+      const [a, b] = [value(s.from), value(s.to)];
+      const length = Math.max(0, Math.abs(b - a) - (stacked ? GAP : 0));
+      if (length === 0) return [];
+      const partial = data.x.partial?.[s.category] ?? false;
+      const key = `${s.category}-${s.series}`;
+      const common = { key, category: s.category, series: s.series, partial };
+      return horizontal
+        ? [{ ...common, x: b >= a ? a : a - length, width: length, y: across, height: thickness }]
+        : [{ ...common, x: across, width: thickness, y: b < a ? a - length : a, height: length }];
+    });
+  }
+}
+
+// Inside a bar, with a little slack so a 1px bar can still be hovered.
+function contains(r: BarRect, p: { x: number; y: number }): boolean {
+  const slack = 2;
+  return p.x >= r.x - slack && p.x <= r.x + r.width + slack && p.y >= r.y - slack && p.y <= r.y + r.height + slack;
 }
 
 function groupedSegments(data: CartesianData): Segment[] {

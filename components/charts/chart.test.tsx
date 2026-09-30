@@ -74,10 +74,10 @@ describe("Chart", () => {
     const bar = { ...base, type: "bar", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" }, series: { field: "shop" } } as const;
     renderChart(bar);
     // Brixton has no scoops on 2025-06-02 and Richmond no row on 2025-06-03.
-    expect(screen.getByRole("img").querySelectorAll("rect")).toHaveLength(4);
+    expect(screen.getByRole("img").querySelectorAll("rect:not([data-hover-layer])")).toHaveLength(4);
     cleanup();
     renderChart({ ...bar, layout: "stacked", orientation: "horizontal" });
-    expect(screen.getByRole("img").querySelectorAll("rect")).toHaveLength(4);
+    expect(screen.getByRole("img").querySelectorAll("rect:not([data-hover-layer])")).toHaveLength(4);
   });
 
   it("labels monthly ticks by period, with the year where it changes", () => {
@@ -99,7 +99,7 @@ describe("Chart", () => {
   it("draws partial bars lighter, with period labels and a footnote", () => {
     renderChart({ ...base, type: "bar", x: { field: "date", timeUnit: "month" }, y: { aggregate: "count" } }, seasonal);
     const svg = screen.getByRole("img");
-    expect(svg.querySelectorAll("rect")).toHaveLength(4);
+    expect(svg.querySelectorAll("rect:not([data-hover-layer])")).toHaveLength(4);
     expect(svg.querySelectorAll("rect[data-partial]")).toHaveLength(2);
     expect(screen.getByText("Nov 2024")).toBeTruthy();
     expect(screen.getByText(/^Lighter: Nov 2024 and Feb 2025 cover only part/)).toBeTruthy();

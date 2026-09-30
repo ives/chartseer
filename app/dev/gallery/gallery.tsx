@@ -7,6 +7,7 @@ import { type InferredDataset, inferDataset } from "@/lib/data/infer";
 import { parseCsv } from "@/lib/data/parse";
 import { prepareChartData } from "@/lib/data/prepare";
 import { type DatasetSummary, bikesSummary, examples, gelatoSummary, parseSpec } from "@/lib/spec";
+import { ThemeSwitch } from "./theme-switch";
 
 type Loaded = Map<DatasetMeta, InferredDataset>;
 
@@ -36,7 +37,10 @@ export function Gallery() {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-12 px-6 py-10">
-      <h1 className="text-2xl font-semibold">Chart gallery</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Chart gallery</h1>
+        <ThemeSwitch />
+      </div>
       {error && <p role="alert">Couldn’t load the demo data: {error}</p>}
       {!loaded && !error && <p>Loading the demo data…</p>}
       {loaded &&
@@ -61,7 +65,7 @@ export function Gallery() {
               )}
               <details className="text-sm">
                 <summary className="cursor-pointer opacity-70">Spec</summary>
-                <pre className="mt-2 overflow-x-auto rounded bg-black/5 p-3 text-xs dark:bg-white/10">
+                <pre className="mt-2 overflow-x-auto rounded bg-surface p-3 text-xs">
                   {JSON.stringify(example.spec, null, 2)}
                 </pre>
               </details>
