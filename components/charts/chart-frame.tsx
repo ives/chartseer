@@ -102,7 +102,7 @@ export function ChartFrame({ title, subtitle, legend, dataset, note, description
       </div>
       <footer className="flex flex-col gap-0.5 text-xs opacity-70">
         {note && <p>{note}</p>}
-        <p>{dataset.attribution}</p>
+        {dataset.attribution && <p>{dataset.attribution}</p>}
         {dataset.note && <p>{dataset.note}</p>}
       </footer>
     </figure>

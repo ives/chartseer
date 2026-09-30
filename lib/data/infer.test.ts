@@ -118,3 +118,87 @@ describe("sample rows", () => {
     expect(infer("i\n1\n2\n3\n").summary.sampleRows).toEqual([{ i: 1 }, { i: 2 }, { i: 3 }]);
   });
 });
+
+describe("UK and US number formats", () => {
+  it.each([
+    ["thousands separators", '"1,234",1\n"12,345,678.9",2\n', [1234, 12345678.9]],
+    ["pounds", "£3.50,1\n-£1,2\n", [3.5, -1]],
+    ["dollars", '"$1,200",1\n$-5,2\n', [1200, -5]],
+    ["euros", "€0.99,1\n€12,2\n", [0.99, 12]],
+    ["percentages", "12%,1\n-3.5%,2\n", [12, -3.5]],
+  ])("reads %s as numbers", (_name, body, expected) => {
+    const { summary, rows } = infer("v,i\n" + body);
+    expect(summary.columns[0]?.kind).toBe("number");
+    expect(rows.map((r) => r.v)).toEqual(expected);
+  });
+
+  it.each([
+    ["decimal commas", '"3,5"\n"1,25"\n'],
+    ["thousands groups of the wrong size", '"1,23"\n"4,5678"\n'],
+    ["a currency and a percentage together", "£5%\n£6%\n"],
+    ["a sign on both sides of the symbol", "-£-5\n-£-6\n"],
+    ["words", "£5\nfree\n"],
+  ])("keeps %s as a category", (_name, body) => {
+    expect(column("v,i\n" + body.replace(/\n/g, ",1\n"))?.kind).toBe("category");
+  });
+
+  it("adds the shared unit to a derived label", () => {
+    const { summary } = infer("price,growth,mixed\n£5,12%,£5\n£6,3%,$6\n");
+    expect(summary.columns.map((c) => c.label)).toEqual(["Price (£)", "Growth (%)", "Mixed"]);
+  });
+
+  it("doesn't repeat a unit the name already has, or override a label from the meta", () => {
+    const { summary } = infer("growth_%,price\n12%,£5\n3%,£6\n", { columnLabels: { price: "Ticket price" } });
+    expect(summary.columns.map((c) => c.label)).toEqual(["Growth %", "Ticket price"]);
+  });
+});
+
+describe("UK and US dates", () => {
+  const csv = (...dates: string[]) => "d,i\n" + dates.map((d, i) => `${d},${i}`).join("\n") + "\n";
+
+  it("reads a day over 12 in the first part as day/month", () => {
+    const { summary, rows, ambiguousDates } = infer(csv("13/01/2025", "02/03/2025", "1/2/2025"));
+    expect(summary.columns[0]).toMatchObject({ kind: "date", min: "2025-01-13", max: "2025-03-02" });
+    expect(rows.map((r) => r.d)).toEqual(["2025-01-13", "2025-03-02", "2025-02-01"]);
+    expect(ambiguousDates).toEqual([]);
+  });
+
+  it("reads a day over 12 in the second part as month/day", () => {
+    const { rows, ambiguousDates } = infer(csv("01/13/2025", "02/03/2025"));
+    expect(rows.map((r) => r.d)).toEqual(["2025-01-13", "2025-02-03"]);
+    expect(ambiguousDates).toEqual([]);
+  });
+
+  it("reads an ambiguous column as day/month and flags it", () => {
+    const { summary, rows, ambiguousDates } = infer(csv("03/04/2025", "05/04/2025"));
+    expect(rows.map((r) => r.d)).toEqual(["2025-04-03", "2025-04-05"]);
+    expect(summary.columns[0]?.kind).toBe("date");
+    expect(ambiguousDates).toEqual(["d"]);
+  });
+
+  it("reads an ambiguous column as month/day when asked, still flagged", () => {
+    const { rows, ambiguousDates } = infer(csv("03/04/2025", "05/04/2025"), { ambiguousDates: "month-first" });
+    expect(rows.map((r) => r.d)).toEqual(["2025-03-04", "2025-05-04"]);
+    expect(ambiguousDates).toEqual(["d"]);
+  });
+
+  it("ignores the switch for a column whose order is known", () => {
+    const { rows } = infer(csv("13/01/2025"), { ambiguousDates: "month-first" });
+    expect(rows.map((r) => r.d)).toEqual(["2025-01-13"]);
+  });
+
+  it.each([
+    ["both parts over 12 in different rows", ["13/01/2025", "01/13/2025"]],
+    ["a day that doesn't exist", ["31/02/2025", "13/01/2025"]],
+    ["a mix of slash and ISO dates", ["13/01/2025", "2025-01-14"]],
+    ["two-digit years", ["13/01/25"]],
+  ])("keeps %s as a category", (_name, dates) => {
+    expect(column(csv(...dates))?.kind).toBe("category");
+  });
+
+  it("keeps empty cells as nulls", () => {
+    const { summary, rows } = infer("d,i\n13/01/2025,1\n,2\n");
+    expect(summary.columns[0]).toMatchObject({ kind: "date", nulls: 1, distinct: 1 });
+    expect(rows.map((r) => r.d)).toEqual(["2025-01-13", null]);
+  });
+});

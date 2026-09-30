@@ -124,6 +124,7 @@ Format: **Context** (what prompted it) · **Decision** · **Consequences** (what
 **Decision:** A column is `number` if every non-empty cell is a plain decimal (optionally with an exponent), `date` if every one is an ISO 8601 date or date-time that exists on the calendar, otherwise `category` — unless it has more than 50 distinct values (`MAX_LISTED_VALUES`) and more than half its non-empty cells are distinct, which makes it `text`. The 50 floor keeps small files' columns as categories: in a 10-row file almost every column is mostly unique. Dates stay as their original ISO strings. Thousands separators, currency symbols, decimal commas and non-ISO dates (`24/09/2026`) are not recognised: they are ambiguous across locales, both bundled files are clean, and a wrong guess is worse than a category. Category order is the dataset's own `columnOrder` first, then a known sequence (weekdays, months) when every value belongs to it, then first appearance (D-015). Seasons have no built-in sequence; bikes sets theirs in `lib/data/datasets.ts`.
 **Consequences:** A station name repeated across 25,000 hires is a category (805 distinct); a column of free-text notes is text. Uploaded files with locale-formatted numbers or dates come through as categories until a real case justifies more parsing.
 *The text floor is now `TEXT_MIN_DISTINCT` in `lib/data/infer.ts`, still 50; `MAX_LISTED_VALUES` rose to 200 (D-039).*
+*UK and US numbers and slash dates are now recognised (D-042).*
 
 ## D-020 · 2026-09-24 · Chart components may import types from `lib/data`
 
@@ -336,3 +337,38 @@ The schema is about 74% of gelato's cached prefix of about 10,200 tokens, and ab
 - **Tokens:** the tool schema grew from 7,561 to 7,661, because the longer title description appears once per chart type. The bikes dataset summary grew from 3,368 to 4,908 (D-039). 94% of input tokens were cache reads.
 - **Response time:** median 2.8 s, p90 3.9 s.
 **Consequences:** D-032's caveat stands, narrowed. The two-failures-then-prose path is covered by a mock-model test (`lib/ai/chat.test.ts`, "allows only prose after the retry fails"), which checks three calls, `toolChoice: "none"` on the last, and the prose reply. No live case has failed twice yet, so the wording of that explanation is still unmeasured.
+
+## D-041 · 2026-09-30 · CSV uploads
+
+**Context:** M4 brings uploads into the UI (ARCHITECTURE §11). A file from a user can be anything, and the lenient `parseCsv` used for the bundled files silently drops extra cells and leaves missing ones empty.
+**Decision:**
+- **Where:** an "Upload CSV" button beside the dataset picker, and drag and drop anywhere on the page. The file is read and parsed in the browser (D-005). The privacy note sits under the header controls and on the drop overlay.
+- **Checks before reading** (`checkFile` in `lib/data/upload.ts`): the name must end in `.csv`, because MIME types vary too much by OS to rely on; and the size must be at most 5 MB. The size in the message is rounded up, so a file just over the limit never reads as "5.0 MB".
+- **Reading** (`readCsv` in `lib/data/parse.ts`):
+  - Strips a UTF-8 byte-order mark.
+  - Takes the delimiter from the header line: whichever of comma, semicolon and tab appears most often outside quotes, or comma if none appears.
+  - Skips blank lines and trims column names.
+  - `parseCsv` shares the splitting but keeps blank rows, because in a one-column file they are empty cells.
+- **Errors, each with its own message, in this order:** binary content (NUL characters), empty file, a first row that looks like data (every cell a number or date), a column with no name, duplicate names, a single column, no data rows, and a row with the wrong number of values.
+  - Rows are numbered as a spreadsheet shows them, with the header as row 1, and only the first bad row is named.
+  - Unnamed and duplicate columns weren't in the brief, but without these checks one column would silently overwrite another.
+- **Switching dataset**, by picking another one or loading a valid upload, starts a new conversation. If one has started, a native `<dialog>` asks first, which needs no new dependency. A rejected upload shows its error and leaves everything as it was.
+- **Uploads have no attribution:** `attribution` is optional on `DatasetMeta` and required on `BundledDataset`.
+**Consequences:** A file is held in memory until another dataset replaces it; nothing is stored. Leading-index columns exported by pandas (an empty first header cell) are rejected with "Column 1 has no name", which is clear but strict; revisit if it comes up.
+
+## D-042 · 2026-09-30 · Locale formats in uploads
+
+**Context:** ARCHITECTURE §14 left UK-style dates and formatted numbers to M4. Until now they came through as categories (D-019).
+**Decision:**
+- **Numbers:** a column is numeric if every cell is a plain decimal, or a number with an optional sign, an optional leading £, $ or € (`-£5` and `£-5` both work), comma thousands in strict groups of three, and an optional trailing %.
+  - Values are stored plain. `12%` is 12, not 0.12, so the axis reads as the file does.
+  - When every cell carries the same symbol and the label is derived, it gains the unit: "Price (£)", "Growth (%)". The model and the axes keep the meaning; Studio passes the inferred labels to the chart as `columnLabels`.
+- **Decimal commas (`3,50`) are not recognised** and stay categories. `1,234` can't be both a thousands separator and a decimal, and the app is British. Semicolon files, often European, still load, but their decimal-comma columns won't be numeric.
+- **Dates:** `D/M/YYYY` or `M/D/YYYY`, with 1–2-digit day and month and a 4-digit year, decided per column:
+  - Any first part over 12 means day-first. Any second part over 12 means month-first.
+  - Both, a date that doesn't exist, or a mix with other formats makes the column a category, as with impossible ISO dates.
+  - With neither, the column is ambiguous and read day-first: the app is British, and day-first is the more common order outside the US.
+  - Every date becomes ISO (`YYYY-MM-DD`) on load, so the model, validation and bucketing only see ISO.
+- **The switch:** when any column is ambiguous, "Dates read as day/month · switch" appears beside the dataset name. The switch flips every ambiguous column at once, since a file uses one convention; columns whose order is known are unaffected.
+  - Switching re-infers the file but **keeps the conversation**: the data changed, not the question, and the current chart redraws from the re-read rows.
+**Consequences:** Two-digit years, dates with times (`24/09/2026 14:30`), other separators (`24.09.2026`, `24-09-2026`) and accounting negatives (`(5)`) are still categories. The ambiguity flag is kept out of `DatasetSummary`, so nothing changes for the model or `/api/chat`.

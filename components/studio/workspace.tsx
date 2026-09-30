@@ -1,18 +1,35 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { useChartseerChat } from "@/components/chat/use-chartseer-chat";
-import type { DatasetMeta } from "@/lib/data/datasets";
+import type { BundledDataset, DatasetMeta } from "@/lib/data/datasets";
+import type { InferredDataset } from "@/lib/data/infer";
 import { prepareChartData } from "@/lib/data/prepare";
 import { ChartArea } from "./chart-area";
-import { useDataset } from "./use-dataset";
+import { type DatasetState, useDataset } from "./use-dataset";
+
+// A bundled dataset is fetched; an upload arrives parsed and inferred.
+export type WorkspaceSource =
+  | { kind: "bundled"; meta: BundledDataset; examples: readonly string[] }
+  | { kind: "upload"; meta: DatasetMeta; dataset: InferredDataset };
+
+type WorkspaceProps = {
+  source: WorkspaceSource;
+  // Called with whether a conversation has started, so Studio can confirm before replacing it.
+  onConversationChange: (active: boolean) => void;
+};
 
 // One dataset's data, chat and chart. Studio remounts it on a dataset change.
-export function Workspace({ meta, examples }: { meta: DatasetMeta; examples: readonly string[] }) {
-  const loaded = useDataset(meta);
+export function Workspace({ source, onConversationChange }: WorkspaceProps) {
+  const { meta } = source;
+  const fetched = useDataset(source.kind === "bundled" ? source.meta : null);
+  const loaded: DatasetState = source.kind === "upload" ? { status: "ready", dataset: source.dataset } : fetched;
   const inferred = loaded.status === "ready" ? loaded.dataset : null;
   const chat = useChartseerChat(inferred?.summary ?? null);
+
+  const active = chat.messages.length > 0;
+  useEffect(() => onConversationChange(active), [active, onConversationChange]);
 
   const chart = useMemo(() => {
     if (!inferred || !chat.currentSpec) return null;
@@ -28,7 +45,12 @@ export function Workspace({ meta, examples }: { meta: DatasetMeta; examples: rea
             Couldn’t load {meta.title}. Reload the page to try again.
           </p>
         ) : (
-          <ChartArea pending={!inferred || chat.drawing} chart={chart} dataset={meta} examples={examples} />
+          <ChartArea
+            pending={!inferred || chat.drawing}
+            chart={chart}
+            dataset={meta}
+            examples={source.kind === "bundled" ? source.examples : []}
+          />
         )}
       </section>
       <div className="flex min-h-[24rem] flex-col lg:min-h-0 lg:flex-1">

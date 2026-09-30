@@ -137,6 +137,8 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - CSV is parsed **in the browser** and kept in memory. No upload to a server, no storage.
 - File size limit: 5 MB.
+- **Uploads** (D-041): a `.csv` of up to 5 MB, by button or drag and drop. The delimiter (comma, semicolon or tab) comes from the header line, and a byte-order mark is stripped. Bad files get a specific message: not a CSV, too large, empty, no header row, unnamed or duplicate columns, a single column, no data rows, or a row with the wrong number of values (named by row). Loading another dataset starts a new conversation, after confirming if one exists.
+- **UK and US formats** (D-042): numbers with comma thousands, a leading £, $ or € and a trailing % are read as plain numbers; the label keeps the unit. `DD/MM/YYYY` and `MM/DD/YYYY` dates become ISO. An ambiguous column is read day-first, and the user can switch it.
 - Column inference produces a summary per column (`lib/spec/columns.ts`): `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, and up to 5 example values. A category column with 200 or fewer distinct values lists **all** of them instead, in natural order: calendar order for weekdays, months and seasons, otherwise the order of first appearance in the file (D-015, D-039).
 - The model receives the summary, the row count and at most 10 sample rows — never the full dataset.
 - `prepareChartData(rows, dataset, spec)` is the one pure pipeline from typed rows to chart-ready data: **filter → bucket → group and aggregate → sort → limit → shape** (D-021). Renderers never transform data themselves.
@@ -195,4 +197,4 @@ All errors are collected, not just the first. A check that needs a missing colum
 - ~~**Tool schema size.**~~ Settled: the schema is 7,561 tokens, about 74% of the cached prefix. 94% of input tokens are read from cache, so it costs little per turn and is left as it is (D-038).
 - **Attribution and sampling are the app's job.** The TfL attribution and the bike sample ratio (1 in 30.8) must be shown by the app wherever the bikes dataset appears, not left to the model's subtitles, which it may omit or get wrong.
 - **Dark mode (M5).** Charts follow the page theme, with no white panel behind them. Consider a subtly raised panel behind each chart and fainter gridlines. Any future export or download is always light-themed, whatever the page theme.
-- **Locale formats in uploads.** Column inference doesn't yet recognise UK-style dates (`24/09/2026`) or numbers with thousands separators (`1,234`); they come through as categories (D-019). Decide in M4, when uploads arrive.
+- ~~**Locale formats in uploads.**~~ Settled: comma thousands, £/$/€ and % are read as numbers, and slash dates are read day- or month-first per column, with a switch when a column is ambiguous. Decimal commas are not supported (D-042).

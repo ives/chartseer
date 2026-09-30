@@ -1,17 +1,19 @@
 import type { InferMeta } from "./infer";
 import type { LabelMeta } from "./labels";
 
-// The bundled demo datasets in public/data/. See docs/DATA.md.
+// What the app knows about a dataset beyond its rows: a bundled one or an upload.
 export type DatasetMeta = InferMeta & LabelMeta & {
   id: string;
   title: string;
-  path: string;
   // Must be shown wherever the dataset is displayed.
-  attribution: string;
+  attribution?: string;
   note?: string;
 };
 
-export const datasets: Record<"bikes" | "gelato", DatasetMeta> = {
+// The bundled demo datasets in public/data/. See docs/DATA.md.
+export type BundledDataset = DatasetMeta & { path: string; attribution: string };
+
+export const datasets: Record<"bikes" | "gelato", BundledDataset> = {
   bikes: {
     id: "bikes",
     title: "Santander Cycles journeys, London",

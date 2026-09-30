@@ -9,6 +9,7 @@ type ChartAreaProps = {
   chart: { spec: ChartSpec; data: ChartData; dataset: DatasetMeta } | null;
   // For the empty state's attribution; the chart frame shows it otherwise.
   dataset: DatasetMeta;
+  // Suggested requests for the empty state; none for an upload.
   examples: readonly string[];
 };
 
@@ -27,13 +28,19 @@ export function ChartArea({ pending, chart, dataset, examples }: ChartAreaProps)
   return (
     <div className="flex h-[360px] flex-col justify-center gap-2 rounded-lg border border-dashed border-border p-6 text-sm text-muted">
       <p className="text-base text-foreground">No chart yet.</p>
-      <p>Try asking for:</p>
-      <ul className="list-disc pl-5">
-        {examples.map((example) => (
-          <li key={example}>“{example}”</li>
-        ))}
-      </ul>
-      <p className="mt-auto text-xs">{dataset.attribution}</p>
+      {examples.length > 0 ? (
+        <>
+          <p>Try asking for:</p>
+          <ul className="list-disc pl-5">
+            {examples.map((example) => (
+              <li key={example}>“{example}”</li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p>Ask for a chart of your data.</p>
+      )}
+      {dataset.attribution && <p className="mt-auto text-xs">{dataset.attribution}</p>}
     </div>
   );
 }
