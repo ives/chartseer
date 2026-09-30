@@ -1,5 +1,7 @@
 import { Chart } from "@/components/charts/chart";
 import type { DatasetMeta } from "@/lib/data/datasets";
+import type { EmptyChart } from "@/lib/data/empty";
+import { Attribution } from "./attribution";
 import type { ChartData } from "@/lib/data/prepare";
 import type { ChartSpec } from "@/lib/spec";
 
@@ -16,11 +18,16 @@ export type ChartStepsControls = {
 type ChartAreaProps = {
   // The data is loading, or a renderChart call is streaming.
   pending: boolean;
-  chart: { spec: ChartSpec; data: ChartData; dataset: DatasetMeta } | null;
+  // `empty` says why a valid chart has nothing to draw (D-046).
+  chart: { spec: ChartSpec; data: ChartData; dataset: DatasetMeta; empty: EmptyChart | null } | null;
   // For the empty state's attribution; the chart frame shows it otherwise.
   dataset: DatasetMeta;
-  // Suggested requests for the empty state; none for an upload.
-  examples: readonly string[];
+  // Requests offered as chips before the first chart (D-045).
+  starters: readonly string[];
+  // Whether a chip or the fix button can send now.
+  canAsk: boolean;
+  // Sends a request into the chat, as if the user had typed it.
+  onAsk: (text: string) => void;
   steps: ChartStepsControls;
 };
 
@@ -29,7 +36,7 @@ const BUTTON =
 
 // Skeleton, chart or empty state. It knows nothing about chat: a failed tool
 // call simply leaves the previous chart, or the empty state, in place.
-export function ChartArea({ pending, chart, dataset, examples, steps }: ChartAreaProps) {
+export function ChartArea({ pending, chart, dataset, starters, canAsk, onAsk, steps }: ChartAreaProps) {
   return (
     <>
       {pending ? (
@@ -61,24 +68,54 @@ export function ChartArea({ pending, chart, dataset, examples, steps }: ChartAre
               Redo
             </button>
           </div>
-          <Chart spec={chart.spec} data={chart.data} dataset={chart.dataset} />
+          {chart.empty ? (
+            // A message in the chart's place, not blank axes.
+            <div className="flex min-h-[360px] flex-col justify-center gap-3 rounded-lg border border-dashed border-border p-6 text-sm">
+              <h2 className="text-base font-semibold">{chart.spec.title}</h2>
+              <p>{chart.empty.message}</p>
+              {chart.empty.kind === "filter" && (
+                <p>
+                  <button
+                    type="button"
+                    disabled={!canAsk}
+                    onClick={() => chart.empty?.kind === "filter" && onAsk(chart.empty.request)}
+                    className={BUTTON}
+                  >
+                    Ask Chartseer to fix it
+                  </button>
+                </p>
+              )}
+              <Attribution dataset={chart.dataset} />
+            </div>
+          ) : (
+            <Chart spec={chart.spec} data={chart.data} dataset={chart.dataset} />
+          )}
         </div>
       ) : (
         <div className="flex h-[360px] flex-col justify-center gap-2 rounded-lg border border-dashed border-border p-6 text-sm text-muted">
           <p className="text-base text-foreground">No chart yet.</p>
-          {examples.length > 0 ? (
+          {starters.length > 0 ? (
             <>
-              <p>Try asking for:</p>
-              <ul className="list-disc pl-5">
-                {examples.map((example) => (
-                  <li key={example}>“{example}”</li>
+              <p id="starters-label">Try asking for:</p>
+              <ul aria-labelledby="starters-label" className="flex flex-wrap gap-2">
+                {starters.map((starter) => (
+                  <li key={starter}>
+                    <button
+                      type="button"
+                      disabled={!canAsk}
+                      onClick={() => onAsk(starter)}
+                      className="rounded-full border border-border bg-background px-3 py-1 text-foreground hover:bg-surface focus-visible:outline-2 focus-visible:outline-foreground disabled:opacity-40"
+                    >
+                      {starter}
+                    </button>
+                  </li>
                 ))}
               </ul>
             </>
           ) : (
             <p>Ask for a chart of your data.</p>
           )}
-          {dataset.attribution && <p className="mt-auto text-xs">{dataset.attribution}</p>}
+          <Attribution dataset={dataset} />
         </div>
       )}
       {/* Always mounted, so a change is announced. */}

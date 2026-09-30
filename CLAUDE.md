@@ -41,7 +41,7 @@ pnpm test         # vitest run
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # eslint
 pnpm try-spec <f> # run parseSpec on a { dataset, spec } JSON file (samples in scripts/specs/)
-pnpm check-prompts # live: 25 requests through lib/ai, report in scripts/reports/ (costs tokens)
+pnpm check-prompts # live: 28 requests through lib/ai, report in scripts/reports/ (costs tokens)
 ```
 
 ## Conventions

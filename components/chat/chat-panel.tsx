@@ -7,6 +7,7 @@ import { ChatInput } from "./chat-input";
 import { ChatMessage } from "./chat-message";
 import { friendlyError } from "./error-message";
 import { type ChartseerMessage, specsIn, textOf } from "./messages";
+import { useOnline } from "./use-online";
 
 type ChatPanelProps = {
   messages: ChartseerMessage[];
@@ -20,6 +21,7 @@ type ChatPanelProps = {
 };
 
 export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRetry }: ChatPanelProps) {
+  const online = useOnline();
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const wasBusy = useRef(false);
@@ -49,7 +51,7 @@ export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRe
         )}
         {error && (
           <div role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-sm text-danger">
-            <span>{friendlyError(error)}</span>
+            <span>{friendlyError(error, online)}</span>
             <button
               type="button"
               onClick={onRetry}
@@ -63,7 +65,13 @@ export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRe
       <p role="status" className="sr-only">
         {announcement(messages, status, dataset)}
       </p>
-      <ChatInput ref={input} onSend={onSend} busy={busy} disabled={!dataset} />
+      {!online && (
+        <p role="alert" className="border-t border-border px-3 pt-2 text-sm text-muted">
+          You’re offline. Chartseer will work again when your connection is back.
+        </p>
+      )}
+      {/* Offline, typing still works; sending waits, as while a reply streams. */}
+      <ChatInput ref={input} onSend={onSend} busy={busy || !online} disabled={!dataset} />
     </section>
   );
 }

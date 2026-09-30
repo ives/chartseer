@@ -270,7 +270,7 @@ function nearest(value: string, candidates: readonly string[]): string | undefin
 }
 
 // Levenshtein distance: the fewest single-character insertions, deletions or substitutions.
-function editDistance(a: string, b: string): number {
+export function editDistance(a: string, b: string): number {
   let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
     const current = [i];

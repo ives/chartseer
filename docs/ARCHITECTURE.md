@@ -138,6 +138,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 - CSV is parsed **in the browser** and kept in memory. No upload to a server, no storage.
 - File size limit: 5 MB.
 - **Uploads** (D-041): a `.csv` of up to 5 MB, by button or drag and drop. The delimiter (comma, semicolon or tab) comes from the header line, and a byte-order mark is stripped. Bad files get a specific message: not a CSV, too large, empty, no header row, unnamed or duplicate columns, a single column, no data rows, or a row with the wrong number of values (named by row). Loading another dataset starts a new conversation, after confirming if one exists.
+- **Empty charts** (D-046): a valid chart with nothing to draw shows a message in its place, not blank axes. If the filters matched no rows, it names the first filter that matched nothing, with up to three close values from the data or the column's range, and offers to send that to the model to fix. If rows matched but the plotted columns are empty there, it says which column.
 - **UK and US formats** (D-042): numbers with comma thousands, a leading £, $ or € and a trailing % are read as plain numbers; the label keeps the unit. `DD/MM/YYYY` and `MM/DD/YYYY` dates become ISO. An ambiguous column is read day-first, and the user can switch it.
 - Column inference produces a summary per column (`lib/spec/columns.ts`): `name`, `kind` (`number | date | category | text`), distinct count, null count, min/max where applicable, and up to 5 example values. A category column with 200 or fewer distinct values lists **all** of them instead, in natural order: calendar order for weekdays, months and seasons, otherwise the order of first appearance in the file (D-015, D-039).
 - The model receives the summary, the row count and at most 10 sample rows — never the full dataset.
@@ -150,6 +151,8 @@ All errors are collected, not just the first. A check that needs a missing colum
 - Every tool call returns a **complete** spec, never a patch. The current spec is sent with each request so the model can revise it.
 - The browser keeps the list of specs as history, which gives undo for free.
 - **Undo and redo** (D-044) step through that history, with buttons in the chart area or Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z outside text fields. The chart on screen is always the current spec sent with the next request, and the user's next message starts with a short event naming it ("↩ Back to: …"), so a refinement after an undo builds on what the user sees. A new chart after an undo discards the redo steps.
+- **First screen and starters** (D-045): the app opens on a choice of demo dataset or upload. Before the first chart, three or four starter prompts appear as chips that send straight into the chat: hand-picked for the demo datasets, built from the column summary for uploads.
+- **Offline and errors** (D-047): offline, the chat says so and holds sending; a failed request says whether the device is offline or the server is out of reach, with Try again. A demo file that fails to load has its own Try again.
 - Text streams as it arrives. While a tool call is in progress, the chart area shows a skeleton. The chart renders only once the spec is complete and validated.
 
 ## 9. Rendering
@@ -178,7 +181,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - **`lib/`:** Vitest unit tests for schema, validation, inference and `prepareChartData`. A test asserts that every example spec passes both validation layers.
 - **Charts:** React Testing Library for structure and accessible text, not pixels. Visual checks happen on a dev-only gallery page that renders every example spec.
-- **The model:** no live model calls in the test suite. `pnpm check-prompts`, run by hand, sends 25 requests through `lib/ai`, including a refinement after an undo, against the demo data and reports how many produce valid specs first time, with tokens and response times. Full results go to `scripts/reports/` (git-ignored). Results in D-037, D-040 and D-044.
+- **The model:** no live model calls in the test suite. `pnpm check-prompts`, run by hand, sends 28 requests through `lib/ai`, including a refinement after an undo and three on an uploaded-style file, against the demo data and reports how many produce valid specs first time, with tokens and response times. Full results go to `scripts/reports/` (git-ignored). Results in D-037, D-040, D-044 and D-048.
 
 ## 13. Milestones
 
@@ -186,7 +189,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 - [x] **M1 — The contract:** `ChartSpec` schema, semantic validation, 4–6 hand-written example specs, tests.
 - [x] **M2 — Rendering without AI:** CSV parsing, column inference, `prepareChartData`, chart frame, four renderers, gallery page.
 - [x] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
-- [ ] **M4 — Refinement and states:** follow-up edits, undo, CSV upload in the UI, error and empty states.
+- [x] **M4 — Refinement and states:** follow-up edits, undo, CSV upload in the UI, error and empty states.
 - [ ] **M5 — Polish:** dark mode, accessibility pass, motion, responsive layout.
 - [ ] **M6 — Ship:** rate limiting, README, demo recording.
 
@@ -196,6 +199,6 @@ All errors are collected, not just the first. A check that needs a missing colum
 - **Large scatter plots.** Measured in M2 (D-030): the 25,132-point bikes map draws in SVG in about 0.4 s, but a resize takes about 0.5 s per width and its table view about 2 s. Kept as SVG for now. Decide whether to switch to canvas, sample, or cap the table before M5.
 - ~~Is one validation retry enough?~~ Settled: yes. The prompt check found every spec valid first time, and no retry was needed in 24 cases (D-037).
 - ~~**Tool schema size.**~~ Settled: the schema is 7,561 tokens, about 74% of the cached prefix. 94% of input tokens are read from cache, so it costs little per turn and is left as it is (D-038).
-- **Attribution and sampling are the app's job.** The TfL attribution and the bike sample ratio (1 in 30.8) must be shown by the app wherever the bikes dataset appears, not left to the model's subtitles, which it may omit or get wrong.
+- ~~**Attribution and sampling are the app's job.**~~ Settled: the chart frame, both empty states and the first screen show the attribution and the bike sample ratio (1 in 30.8), never left to the model's subtitles (D-045).
 - **Dark mode (M5).** Charts follow the page theme, with no white panel behind them. Consider a subtly raised panel behind each chart and fainter gridlines. Any future export or download is always light-themed, whatever the page theme.
 - ~~**Locale formats in uploads.**~~ Settled: comma thousands, £/$/€ and % are read as numbers, and slash dates are read day- or month-first per column, with a switch when a column is ambiguous. Decimal commas are not supported (D-042).

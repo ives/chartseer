@@ -14,8 +14,8 @@ const parsed = parseSpec(
   summary,
 );
 if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
-const chart = { spec: parsed.spec, data: prepareChartData(rows, summary, parsed.spec), dataset: datasets.gelato };
-const examples = ["Daily revenue by shop in 2025"];
+const chart = { spec: parsed.spec, data: prepareChartData(rows, summary, parsed.spec), dataset: datasets.gelato, empty: null };
+const ask = { starters: ["Daily revenue by shop in 2025"], canAsk: true, onAsk: () => {} };
 const steps = { canUndo: false, canRedo: false, announcement: "", onUndo: () => {}, onRedo: () => {} };
 
 describe("ChartArea", () => {
@@ -37,20 +37,20 @@ describe("ChartArea", () => {
   });
 
   it("shows a skeleton, not the previous chart, while drawing", () => {
-    render(<ChartArea pending chart={chart} dataset={datasets.gelato} examples={examples} steps={steps} />);
+    render(<ChartArea pending chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
     expect(screen.getByLabelText("Drawing the chart").getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByRole("img")).toBeNull();
   });
 
   it("draws the current chart", () => {
-    render(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} examples={examples} steps={steps} />);
+    render(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
     expect(screen.getByRole("img", { name: "Scoops by day" })).toBeTruthy();
   });
 
   it("shows suggestions and the attribution before any chart", () => {
-    render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} examples={examples} steps={steps} />);
+    render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} {...ask} steps={steps} />);
     expect(screen.getByText("No chart yet.")).toBeTruthy();
-    expect(screen.getByText("“Daily revenue by shop in 2025”")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Daily revenue by shop in 2025" })).toBeTruthy();
     expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
   });
 
@@ -62,7 +62,7 @@ describe("ChartArea", () => {
         pending={false}
         chart={chart}
         dataset={datasets.gelato}
-        examples={examples}
+        {...ask}
         steps={{ ...steps, canUndo: true, onUndo, onRedo }}
       />,
     );
@@ -75,18 +75,58 @@ describe("ChartArea", () => {
     expect(onRedo).not.toHaveBeenCalled();
   });
 
+  it("shows the bikes attribution and sample ratio before any chart", () => {
+    render(<ChartArea pending={false} chart={null} dataset={datasets.bikes} {...ask} steps={steps} />);
+    expect(screen.getByText(datasets.bikes.attribution)).toBeTruthy();
+    expect(screen.getByText(/1 in 30\.8 hires/)).toBeTruthy();
+  });
+
+  it("offers starter prompts as chips that send", () => {
+    const onAsk = vi.fn();
+    render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} {...ask} onAsk={onAsk} steps={steps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Daily revenue by shop in 2025" }));
+    expect(onAsk).toHaveBeenCalledWith("Daily revenue by shop in 2025");
+  });
+
+  it("disables the chips while a request is in flight", () => {
+    render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} {...ask} canAsk={false} steps={steps} />);
+    expect((screen.getByRole("button", { name: "Daily revenue by shop in 2025" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("invites a request when there are no starters", () => {
+    render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} {...ask} starters={[]} steps={steps} />);
+    expect(screen.getByText("Ask for a chart of your data.")).toBeTruthy();
+  });
+
+  it("explains a filter that matched nothing, and asks the model to fix it", () => {
+    const onAsk = vi.fn();
+    const empty = { kind: "filter", message: "No rows where shop is 'Brixtn'.", request: "No rows where shop is 'Brixtn'. Please fix the filter." } as const;
+    render(<ChartArea pending={false} chart={{ ...chart, empty }} dataset={datasets.gelato} {...ask} onAsk={onAsk} steps={steps} />);
+    expect(screen.getByText("No rows where shop is 'Brixtn'.")).toBeTruthy();
+    expect(screen.queryByRole("img")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ask Chartseer to fix it" }));
+    expect(onAsk).toHaveBeenCalledWith("No rows where shop is 'Brixtn'. Please fix the filter.");
+  });
+
+  it("says plainly when there are no values, with no button", () => {
+    const empty = { kind: "no-values", message: "Nothing to plot: scoops is empty in all 2 matching rows." } as const;
+    render(<ChartArea pending={false} chart={{ ...chart, empty }} dataset={datasets.gelato} {...ask} steps={steps} />);
+    expect(screen.getByText("Nothing to plot: scoops is empty in all 2 matching rows.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ask Chartseer to fix it" })).toBeNull();
+  });
+
   it("has no undo or redo before the first chart", () => {
-    render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} examples={examples} steps={steps} />);
+    render(<ChartArea pending={false} chart={null} dataset={datasets.gelato} {...ask} steps={steps} />);
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 
   it("announces the step, even while drawing", () => {
     const announced = { ...steps, announcement: "Showing chart 1 of 2: Scoops by day" };
     const { rerender } = render(
-      <ChartArea pending={false} chart={chart} dataset={datasets.gelato} examples={examples} steps={announced} />,
+      <ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={announced} />,
     );
     expect(screen.getByRole("status").textContent).toBe("Showing chart 1 of 2: Scoops by day");
-    rerender(<ChartArea pending chart={chart} dataset={datasets.gelato} examples={examples} steps={announced} />);
+    rerender(<ChartArea pending chart={chart} dataset={datasets.gelato} {...ask} steps={announced} />);
     expect(screen.getByRole("status").textContent).toBe("Showing chart 1 of 2: Scoops by day");
   });
 });

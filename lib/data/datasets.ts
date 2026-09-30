@@ -11,13 +11,27 @@ export type DatasetMeta = InferMeta & LabelMeta & {
 };
 
 // The bundled demo datasets in public/data/. See docs/DATA.md.
-export type BundledDataset = DatasetMeta & { path: string; attribution: string };
+export type BundledDataset = DatasetMeta & {
+  path: string;
+  attribution: string;
+  // One line for the first screen.
+  summary: string;
+  // Requests offered as chips before the first chart; each measured valid by check-prompts (D-045).
+  starters: readonly string[];
+};
 
 export const datasets: Record<"bikes" | "gelato", BundledDataset> = {
   bikes: {
     id: "bikes",
     title: "Santander Cycles journeys, London",
     path: "/data/bikes.csv",
+    summary: "About 25,000 Santander Cycles hires in London, January to May 2026.",
+    starters: [
+      "Journeys by hour of day, weekdays against weekends",
+      "The 10 busiest start areas",
+      "Median hire length by bike type",
+      "Map the start stations",
+    ],
     attribution:
       "Powered by TfL Open Data. Contains OS data © Crown copyright and database rights 2016 and Geomni UK Map data © and database rights 2019.",
     note: "A random sample of about 1 in 30.8 hires — counts are not TfL totals.",
@@ -47,6 +61,13 @@ export const datasets: Record<"bikes" | "gelato", BundledDataset> = {
     id: "gelato",
     title: "Gelateria Nebbia",
     path: "/data/gelato.csv",
+    summary: "Two years of daily sales at an invented five-shop gelato chain.",
+    starters: [
+      "Daily revenue by shop in 2025",
+      "Scoops against peak temperature",
+      "Which flavours bring in the most revenue? Top 5",
+      "Monthly scoops of sorbet versus gelato",
+    ],
     attribution: "Invented data for a fictional gelato chain.",
     columnLabels: {
       date: "Date",

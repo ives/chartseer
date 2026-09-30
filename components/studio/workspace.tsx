@@ -5,24 +5,28 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { useChartseerChat } from "@/components/chat/use-chartseer-chat";
 import type { BundledDataset, DatasetMeta } from "@/lib/data/datasets";
 import type { InferredDataset } from "@/lib/data/infer";
+import { explainEmpty } from "@/lib/data/empty";
 import { prepareChartData } from "@/lib/data/prepare";
 import { ChartArea } from "./chart-area";
 import { undoShortcut } from "./undo-shortcut";
 import { type DatasetState, useDataset } from "./use-dataset";
 
-// A bundled dataset is fetched; an upload arrives parsed and inferred.
+// A bundled dataset is fetched and brings its own starters; an upload arrives
+// parsed and inferred, with starters built from its summary (D-045).
 export type WorkspaceSource =
-  | { kind: "bundled"; meta: BundledDataset; examples: readonly string[] }
-  | { kind: "upload"; meta: DatasetMeta; dataset: InferredDataset };
+  | { kind: "bundled"; meta: BundledDataset }
+  | { kind: "upload"; meta: DatasetMeta; dataset: InferredDataset; starters: readonly string[] };
 
 type WorkspaceProps = {
   source: WorkspaceSource;
   // Called with whether a conversation has started, so Studio can confirm before replacing it.
   onConversationChange: (active: boolean) => void;
+  // A bundled file failed to load; Studio remounts this to fetch it again.
+  onRetryLoad: () => void;
 };
 
 // One dataset's data, chat and chart. Studio remounts it on a dataset change.
-export function Workspace({ source, onConversationChange }: WorkspaceProps) {
+export function Workspace({ source, onConversationChange, onRetryLoad }: WorkspaceProps) {
   const { meta } = source;
   const fetched = useDataset(source.kind === "bundled" ? source.meta : null);
   const loaded: DatasetState = source.kind === "upload" ? { status: "ready", dataset: source.dataset } : fetched;
@@ -49,22 +53,32 @@ export function Workspace({ source, onConversationChange }: WorkspaceProps) {
   const chart = useMemo(() => {
     if (!inferred || !chat.currentSpec) return null;
     const data = prepareChartData(inferred.rows, inferred.summary, chat.currentSpec, meta);
-    return { spec: chat.currentSpec, data, dataset: meta };
+    const empty = explainEmpty(inferred.rows, inferred.summary, chat.currentSpec, data, meta);
+    return { spec: chat.currentSpec, data, dataset: meta, empty };
   }, [inferred, chat.currentSpec, meta]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
       <section aria-label="Chart" className="min-w-0 lg:flex-[2] lg:overflow-y-auto">
         {loaded.status === "error" ? (
-          <p role="alert" className="text-sm text-danger">
-            Couldn’t load {meta.title}. Reload the page to try again.
-          </p>
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">
+            <span>Couldn’t load {meta.title}. Check your connection.</span>
+            <button
+              type="button"
+              onClick={onRetryLoad}
+              className="rounded border border-border px-2 py-0.5 text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+            >
+              Try again
+            </button>
+          </div>
         ) : (
           <ChartArea
             pending={!inferred || chat.drawing}
             chart={chart}
             dataset={meta}
-            examples={source.kind === "bundled" ? source.examples : []}
+            starters={source.kind === "bundled" ? source.meta.starters : source.starters}
+            canAsk={inferred !== null && !chat.busy}
+            onAsk={chat.send}
             steps={{
               canUndo: chat.canUndo,
               canRedo: chat.canRedo,

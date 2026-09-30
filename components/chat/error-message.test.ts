@@ -12,10 +12,18 @@ describe("friendlyError", () => {
     ["a rate limit in the stream", new Error("rate_limited"), "Too many requests just now. Wait a moment and try again."],
     ["an overloaded model", new Error("overloaded"), "The model is busy right now. Try again in a minute."],
     ["a rejected request", http(400), "That request wasn’t valid. Reloading the page should fix it."],
-    ["a network failure", new TypeError("Failed to fetch"), "Couldn’t reach the server. Check your connection."],
+    ["an unreachable server", new TypeError("Failed to fetch"), "Couldn’t reach the Chartseer server. Try again in a moment."],
     ["a failed stream", new Error("failed"), "Something went wrong. Try again."],
-    ["a server error", http(500), "Something went wrong. Try again."],
+    ["a server error", http(500), "The Chartseer server isn’t responding. Try again in a moment."],
+    ["a bad gateway", http(502), "The Chartseer server isn’t responding. Try again in a moment."],
+    ["a gateway timeout", http(504), "The Chartseer server isn’t responding. Try again in a moment."],
   ])("explains %s", (_name, error, message) => {
     expect(friendlyError(error)).toBe(message);
+  });
+
+  it("says when this device is offline", () => {
+    expect(friendlyError(new TypeError("Failed to fetch"), false)).toBe(
+      "You’re offline. Check your connection, then try again.",
+    );
   });
 });

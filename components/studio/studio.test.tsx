@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "./studio";
 
@@ -43,8 +43,41 @@ describe("Studio uploads", () => {
     expect(screen.getByText("Ask for a chart of your data.")).toBeTruthy();
   });
 
+  it("opens on a choice of demo datasets or an upload", () => {
+    render(<Studio />);
+    expect(screen.getByRole("heading", { name: "Choose some data to chart" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Gelateria Nebbia/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Santander Cycles journeys, London.*1 in 30\.8/ })).toBeTruthy();
+    expect(screen.getByLabelText("Upload Own CSV")).toBeTruthy();
+    expect(screen.queryByLabelText("Dataset")).toBeNull();
+  });
+
+  it("loads a demo dataset and offers its starters", async () => {
+    render(<Studio />);
+    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    expect(((await screen.findByLabelText("Dataset")) as HTMLSelectElement).value).toBe("gelato");
+    expect(await screen.findByRole("button", { name: "Daily revenue by shop in 2025" })).toBeTruthy();
+  });
+
+  it("offers a retry when a demo dataset fails to load", async () => {
+    const fetch = vi.fn(async () => new Response("", { status: 500 }));
+    vi.stubGlobal("fetch", fetch);
+    render(<Studio />);
+    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  });
+
+  it("offers starters built from an uploaded file", async () => {
+    render(<Studio />);
+    upload(csvFile('date,stall,takings\n13/03/2025,Cheese,"£1,200"\n14/03/2025,Bakery,£900\n'));
+    expect(await screen.findByRole("button", { name: "Total takings by month" })).toBeTruthy();
+  });
+
   it("shows the reader's error and keeps the current dataset", async () => {
     render(<Studio />);
+    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    await screen.findByLabelText("Dataset");
     upload(csvFile("a,b,c\n1,2,3\n4,5\n"));
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Row 3 has 2 values, but the header has 3. Check for a missing or extra separator.",

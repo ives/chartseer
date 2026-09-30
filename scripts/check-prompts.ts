@@ -3,7 +3,7 @@
 // Also measures the tool schema, rules and dataset summaries in tokens.
 //
 // Usage: pnpm check-prompts
-// Makes about 25 live model calls; the token counts are free. Reads
+// Makes about 28 live model calls; the token counts are free. Reads
 // ANTHROPIC_API_KEY from .env.local. Never runs in the test suite.
 // Full results go to scripts/reports/ (git-ignored).
 //
@@ -17,11 +17,13 @@ import { getModel } from "../lib/ai/provider";
 import { RENDER_CHART_DESCRIPTION, RENDER_CHART_SCHEMA } from "../lib/ai/tools";
 import { datasets } from "../lib/data/datasets";
 import { inferDataset } from "../lib/data/infer";
-import { parseCsv } from "../lib/data/parse";
+import { parseCsv, readCsv } from "../lib/data/parse";
 import { type ChartSpec, type DatasetSummary, type ParseResult, examples } from "../lib/spec";
 
-type DatasetId = keyof typeof datasets;
-type Kind = "plain" | "refinement" | "vague" | "misspelt" | "impossible" | "off-topic" | "undo";
+type BundledId = keyof typeof datasets;
+// "market" is a small uploaded-style file built below (D-048).
+type DatasetId = BundledId | "market";
+type Kind = "plain" | "refinement" | "vague" | "misspelt" | "impossible" | "off-topic" | "undo" | "upload";
 type Expect = "chart" | "no-chart" | "either";
 type Case = {
   dataset: DatasetId;
@@ -68,6 +70,46 @@ const CASES: Case[] = [
       spec.type !== "scatter" && spec.x.field === "date" && "field" in spec.y && spec.y.field === "scoops" && spec.series?.field === "shop",
   },
 
+  // An uploaded-style file: UK dates, £ amounts and a column name the model can't know (D-048).
+  {
+    dataset: "market",
+    kind: "upload",
+    prompt: "Weekly takings by stall",
+    expect: "chart",
+    check: (spec) =>
+      spec.type !== "scatter" &&
+      spec.x.field === "date" &&
+      spec.x.timeUnit === "week" &&
+      "field" in spec.y &&
+      spec.y.field === "takings" &&
+      spec.y.aggregate === "sum" &&
+      spec.series?.field === "stall",
+  },
+  {
+    dataset: "market",
+    kind: "upload",
+    prompt: "Nobbles sold per day at the Cheese stall",
+    expect: "chart",
+    check: (spec) =>
+      "field" in spec.y &&
+      spec.y.field === "nobbles_sold" &&
+      (spec.filters ?? []).some(
+        (f) => f.field === "stall" && ((f.op === "eq" && f.value === "Cheese") || (f.op === "in" && f.values.join() === "Cheese")),
+      ),
+  },
+  {
+    dataset: "market",
+    kind: "upload",
+    prompt: "Takings for the first half of March only",
+    expect: "chart",
+    // ISO bounds, although the file's dates are DD/MM/YYYY.
+    check: (spec) => {
+      const date = (spec.filters ?? []).filter((f) => f.field === "date");
+      const bound = (ops: string[], values: string[]) => date.some((f) => ops.includes(f.op) && "value" in f && values.includes(String(f.value)));
+      return bound(["gte", "gt"], ["2025-03-01", "2025-02-28"]) && bound(["lte", "lt"], ["2025-03-15", "2025-03-16"]);
+    },
+  },
+
   { dataset: "bikes", kind: "plain", prompt: "Journeys by hour of day, weekdays against weekends", expect: "chart" },
   { dataset: "bikes", kind: "plain", prompt: "The 10 busiest start areas", expect: "chart" },
   { dataset: "bikes", kind: "plain", prompt: "Map the start stations", expect: "chart" },
@@ -96,7 +138,29 @@ type Result = Case & {
   apiError?: string;
 };
 
-function loadSummary(id: DatasetId): DatasetSummary {
+// A market with three stalls over March and April 2025, as a user might
+// upload it: DD/MM/YYYY dates (some days over 12, so they read day-first),
+// "£1,234.50" takings, and nobbles_sold, a name the model can't know.
+// Deterministic, and read through the same path as an upload.
+function marketSummary(): DatasetSummary {
+  const stalls = ["Cheese", "Flowers", "Bakery"];
+  const lines = ["date,stall,takings,nobbles_sold"];
+  for (let day = 0; day < 61; day++) {
+    const date = new Date(Date.UTC(2025, 2, 1 + day));
+    const dmy = `${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/2025`;
+    const weekend = date.getUTCDay() === 0 || date.getUTCDay() === 6;
+    stalls.forEach((stall, i) => {
+      const takings = 500 + i * 300 + ((day * 37 + i * 11) % 400) + (weekend ? 350 : 0) + 0.5;
+      const pounds = takings.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      lines.push(`${dmy},${stall},"£${pounds}",${(day * 7 + i * 3) % 23}`);
+    });
+  }
+  const read = readCsv(lines.join("\n") + "\n");
+  if (!read.ok) throw new Error(`market.csv: ${read.message}`);
+  return inferDataset(read.csv).summary;
+}
+
+function loadSummary(id: BundledId): DatasetSummary {
   const csv = readFileSync(`public/data/${id}.csv`, "utf8");
   return inferDataset(parseCsv(csv), datasets[id]).summary;
 }
@@ -279,14 +343,18 @@ function printSummary(label: string, s: ReturnType<typeof summarise>) {
 
 async function main() {
   const model = getModel().modelId;
-  const summaries: Record<DatasetId, DatasetSummary> = { gelato: loadSummary("gelato"), bikes: loadSummary("bikes") };
+  const summaries: Record<DatasetId, DatasetSummary> = {
+    gelato: loadSummary("gelato"),
+    bikes: loadSummary("bikes"),
+    market: marketSummary(),
+  };
   const startedAt = new Date();
 
   const sizes = await measure(model, summaries);
   console.log(`Model ${model}`);
   console.log(
     `Tokens · tool schema ${sizes.tools} (${sizes.schemaBytes} bytes of JSON Schema, incl. Anthropic's tool-use overhead)` +
-      ` · rules ${sizes.rules} · dataset gelato ${sizes.dataset.gelato}, bikes ${sizes.dataset.bikes}\n`,
+      ` · rules ${sizes.rules} · dataset gelato ${sizes.dataset.gelato}, bikes ${sizes.dataset.bikes}, market ${sizes.dataset.market}\n`,
   );
 
   // A progress line, only when a terminal can overwrite it.
@@ -304,9 +372,11 @@ async function main() {
     overall: summarise(results),
     gelato: summarise(results.filter((r) => r.dataset === "gelato")),
     bikes: summarise(results.filter((r) => r.dataset === "bikes")),
+    market: summarise(results.filter((r) => r.dataset === "market")),
   };
   printSummary("gelato ", summary.gelato);
   printSummary("bikes  ", summary.bikes);
+  printSummary("market ", summary.market);
   printSummary("overall", summary.overall);
 
   mkdirSync("scripts/reports", { recursive: true });

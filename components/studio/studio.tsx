@@ -4,24 +4,23 @@ import { type DragEvent, useMemo, useRef, useState } from "react";
 import { type DatasetMeta, datasets } from "@/lib/data/datasets";
 import { type DateOrder, inferDataset } from "@/lib/data/infer";
 import type { ParsedCsv } from "@/lib/data/parse";
+import { starterPrompts } from "@/lib/data/starters";
 import { readUpload } from "@/lib/data/upload";
 import { ConfirmDialog } from "./confirm-dialog";
+import { DatasetChooser } from "./dataset-chooser";
 import { type DatasetId, DatasetPicker } from "./dataset-picker";
 import { PRIVACY_NOTE, UploadButton } from "./upload-button";
 import { Workspace, type WorkspaceSource } from "./workspace";
-
-// Suggestions for the empty chart area.
-const EXAMPLES: Record<DatasetId, readonly string[]> = {
-  bikes: ["Journeys by hour of day, weekdays against weekends", "The 10 busiest start areas"],
-  gelato: ["Daily revenue by shop in 2025", "Scoops against peak temperature"],
-};
 
 // Each upload gets its own n, so loading a file again starts afresh.
 type Upload = { n: number; name: string; csv: ParsedCsv };
 type Source = { kind: "bundled"; id: DatasetId } | { kind: "upload"; upload: Upload };
 
 export function Studio() {
-  const [source, setSource] = useState<Source>({ kind: "bundled", id: "gelato" });
+  // Null until the user picks a dataset on the first screen (D-045).
+  const [source, setSource] = useState<Source | null>(null);
+  // Bumped to fetch a bundled file again after it failed to load.
+  const [attempt, setAttempt] = useState(0);
   const [dateOrder, setDateOrder] = useState<DateOrder>("day-first");
   const [conversation, setConversation] = useState(false);
   // A dataset waiting for the user to confirm that the conversation can go.
@@ -32,10 +31,9 @@ export function Studio() {
 
   // An upload is inferred here, so the date notice can see it; switching the
   // date order re-infers it without remounting the workspace (D-042).
-  const workspace = useMemo((): WorkspaceSource => {
-    if (source.kind === "bundled") {
-      return { kind: "bundled", meta: datasets[source.id], examples: EXAMPLES[source.id] };
-    }
+  const workspace = useMemo((): WorkspaceSource | null => {
+    if (!source) return null;
+    if (source.kind === "bundled") return { kind: "bundled", meta: datasets[source.id] };
     const dataset = inferDataset(source.upload.csv, { ambiguousDates: dateOrder });
     // The inferred labels carry units such as "(£)", and the chart takes its labels from the meta.
     const meta: DatasetMeta = {
@@ -43,9 +41,9 @@ export function Studio() {
       title: source.upload.name,
       columnLabels: Object.fromEntries(dataset.summary.columns.map((c) => [c.name, c.label ?? c.name])),
     };
-    return { kind: "upload", meta, dataset };
+    return { kind: "upload", meta, dataset, starters: starterPrompts(dataset.summary) };
   }, [source, dateOrder]);
-  const ambiguous = workspace.kind === "upload" && workspace.dataset.ambiguousDates.length > 0;
+  const ambiguous = workspace?.kind === "upload" && workspace.dataset.ambiguousDates.length > 0;
 
   function open(next: Source) {
     setSource(next);
@@ -97,6 +95,7 @@ export function Studio() {
       <header className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold tracking-tight">Chartseer</h1>
+          {source && (
           <div className="flex flex-wrap items-center gap-3">
             <DatasetPicker
               value={source.kind === "bundled" ? source.id : "upload"}
@@ -117,20 +116,26 @@ export function Studio() {
             )}
             <UploadButton onFile={(file) => void loadFile(file)} />
           </div>
+          )}
         </div>
-        <p className="text-xs text-muted sm:self-end">{PRIVACY_NOTE}</p>
+        {source && <p className="text-xs text-muted sm:self-end">{PRIVACY_NOTE}</p>}
         {error && (
           <p role="alert" className="text-sm text-danger sm:self-end">
             {error}
           </p>
         )}
       </header>
-      {/* Remounting on a new dataset clears the data, the chat and the chart history together. */}
-      <Workspace
-        key={source.kind === "bundled" ? source.id : `upload-${source.upload.n}`}
-        source={workspace}
-        onConversationChange={setConversation}
-      />
+      {source && workspace ? (
+        // Remounting on a new dataset clears the data, the chat and the chart history together.
+        <Workspace
+          key={`${source.kind === "bundled" ? source.id : `upload-${source.upload.n}`}-${attempt}`}
+          source={workspace}
+          onConversationChange={setConversation}
+          onRetryLoad={() => setAttempt((n) => n + 1)}
+        />
+      ) : (
+        <DatasetChooser onPick={(id) => choose({ kind: "bundled", id })} onFile={(file) => void loadFile(file)} />
+      )}
       <ConfirmDialog
         open={pending !== null}
         title="Start a new conversation?"

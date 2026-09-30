@@ -408,3 +408,64 @@ The schema is about 74% of gelato's cached prefix of about 10,200 tokens, and ab
   - Overall 25/25 expectations met, all charts valid first time. "Just the summer" on bikes went back to prose this run; either outcome is allowed.
 - **Live check in Chrome:** the same steps drew weekly scoops by shop, then weekly revenue by flavour; then Undo and "Make it stacked". The chat showed "↩ Back to: Weekly scoops by shop, 2025" and the result was a stacked area chart of weekly scoops by shop, with Redo unavailable.
 
+## D-045 · 2026-09-30 · First screen and starter prompts
+
+**Context:** The app opened straight into Gelato, and its empty state listed two example prompts as plain text. M4 asked for a first screen and starter prompts that can be clicked.
+**Decision:**
+- **The app opens on a choice.** `Studio` starts with no dataset. `DatasetChooser` offers a card for each demo dataset (title, a one-line `summary`, the attribution and any note), the upload button with a hint about drag and drop, and the privacy note. The header's picker and upload appear once a dataset is loaded. The first choice needs no confirmation, because there's no conversation yet.
+- **Starters are chips that send.** Before the first chart, the empty state shows three or four buttons. Each sends its text into the chat as if typed, and they're disabled while a request is in flight.
+  - Demo datasets carry hand-written `starters` on `BundledDataset`, each one a check-prompts case measured valid (D-037, D-040).
+  - Uploads get `starterPrompts(summary)` (`lib/data/starters.ts`), which is deterministic and makes no model call. It picks the first date, number and small category columns, and builds up to four requests: a monthly total, the same over time by category, a total by category, and one number against another.
+    - Labels read as prose: "Takings (£)" becomes "takings", and "GDP per capita" keeps its capitals (`inlineLabel` in `lib/data/labels.ts`).
+    - A file of only free text gets no starters, just "Ask for a chart of your data."
+- **Attribution travels with the dataset.** The chart frame already showed the TfL attribution and the bike sample ratio. Both empty states and the first screen now do too, which settles the §14 item.
+**Consequences:**
+- The generated starters are a heuristic, and a number column that is really a code (an hour, a latitude) gives odd prompts such as "Total hour of day by month". That only affects uploads; the demo datasets use their own. Revisit if uploads show it matters.
+- "Map the start stations" needed a retry in the D-048 run (the model used `per` without aggregates), the first retry ever recorded for it. It stays a starter: it was valid after the retry.
+
+## D-046 · 2026-09-30 · Charts with nothing to draw
+
+**Context:** A valid spec could still draw blank axes. A misspelt value on a column too large for a full value list passes validation (D-039 lists only up to 200 values; there are 805 stations), and so does a date range outside the data. A column can also be empty in every row the filters keep.
+**Decision:** `explainEmpty(rows, dataset, spec, data, meta)` (`lib/data/empty.ts`) runs after `prepareChartData`. It returns null when anything would be drawn. Otherwise the chart area shows the spec's title and a message in the chart's place, with Undo and Redo still available.
+- **Filters that matched nothing:** each filter is tried alone on all the rows, and the first that matches nothing is named in words, e.g. "No rows where start station is 'Waterlo Road'."
+  - For text values it adds up to three close values from the rows. They're ranked by edit distance to the whole value or to its start, so "Waterlo Road" finds "Waterloo Road, South Bank".
+  - For dates and numbers it adds the column's span. Dates are written as readers say them ("16 Jan 2026").
+  - If each filter matches on its own but not together, it says so and lists them.
+  - **"Ask Chartseer to fix it"** sends the same text plus "Please fix the filter." into the chat as the user's message, so the model sees exactly what the user saw.
+- **No values:** when rows match but the x, y, or series/group column is empty in all of them, it says which: "Nothing to plot: rainfall is empty in all 31 matching rows." There's no button; changing the data isn't the model's job.
+**Consequences:**
+- The close values are real values from the data, sent to the model only when the user clicks, and visible in the message first. A few values are in the spirit of the privacy note ("a few sample rows"), and they're what makes a typo on a large column fixable.
+- Checked in Chrome: "Journeys by hour from the start station called exactly 'Waterlo Road'" drew the empty state with three close stations. "Ask Chartseer to fix it" then drew hourly journeys from "Waterloo Road, South Bank".
+
+## D-047 · 2026-09-30 · Offline and an unreachable server
+
+**Context:** A failed request said "Couldn't reach the server. Check your connection." whether the device was offline or the server was down, and a failed demo file load said "Reload the page".
+**Decision:**
+- **`useOnline`** (`components/chat/use-online.ts`) follows `navigator.onLine` and the `online`/`offline` events. While offline, the chat panel shows "You're offline. Chartseer will work again when your connection is back." and holds sending, as it does during a reply. Typing still works.
+- **`friendlyError`** tells the cases apart:
+  - a failed fetch while offline: "You're offline. Check your connection, then try again."
+  - a failed fetch while online: "Couldn't reach the Chartseer server. Try again in a moment."
+  - 500, 502 or 504: "The Chartseer server isn't responding. Try again in a moment."
+  - Each keeps the existing Try again button, which resends the same request.
+- **A demo file that fails to load** shows "Couldn't load {title}. Check your connection." with Try again, which remounts the workspace to fetch it again. A failed load has no conversation to lose.
+**Consequences:** `navigator.onLine` can say online behind a captive portal or a dead router; the failed request then gives the "couldn't reach the server" wording, which is still true. The browser tool couldn't switch Chrome offline, so the offline states are covered by jsdom tests only.
+
+## D-048 · 2026-09-30 · Prompt checks on an uploaded-style file
+
+**Context:** Every check-prompts case used the bundled datasets, which have hand-written labels and clean ISO data. Uploads go through a different path: UK dates, currency, derived labels, and column names the model has never seen.
+**Decision:** `scripts/check-prompts.ts` builds a small "market" file:
+- two months of daily takings for three stalls;
+- `DD/MM/YYYY` dates, including days over 12;
+- `"£1,234.50"` takings;
+- `nobbles_sold`, a made-up name.
+
+It's read through `readCsv` and `inferDataset` with no meta, exactly as an upload is. Three cases each carry a `check`:
+- "Weekly takings by stall": a weekly sum of takings by stall.
+- "Nobbles sold per day at the Cheese stall": `nobbles_sold` with a stall filter.
+- "Takings for the first half of March only": ISO date bounds, although the file's dates are slash dates.
+
+**First run** (2026-09-30, `claude-sonnet-5`, 28 cases):
+- **Market:** 3/3 valid first time, every check met. The March filter used `2025-03-01` to `2025-03-15`.
+- **Overall:** 28/28 expectations met; 23 valid first time, 1 after a retry, 4 prose replies as expected. The retry was "Map the start stations" (see D-045).
+- **Tokens:** the market summary is 744 tokens. Median response 3.0 s, p90 5.1 s. The first market call took 9.5 s, because it wrote that dataset's cache.
+

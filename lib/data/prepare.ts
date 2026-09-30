@@ -90,7 +90,7 @@ export function prepareChartData(rows: Row[], dataset: DatasetSummary, spec: Cha
   }
 }
 
-function filterRows(rows: Row[], filters: Filter[]): Row[] {
+export function filterRows(rows: Row[], filters: Filter[]): Row[] {
   if (filters.length === 0) return rows;
   return rows.filter((row) => filters.every((filter) => matches(row[filter.field] ?? null, filter)));
 }
