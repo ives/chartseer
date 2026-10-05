@@ -53,4 +53,13 @@ describe("ChatInput", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(onSend).not.toHaveBeenCalled();
   });
+
+  it("takes at most 2,000 characters, and shows the count near the limit", () => {
+    const { box } = setup();
+    expect(box.getAttribute("maxlength")).toBe("2000");
+    expect(screen.queryByText(/\/ 2,000/)).toBeNull();
+    fireEvent.change(box, { target: { value: "x".repeat(1850) } });
+    const count = screen.getByText("1,850 / 2,000");
+    expect(box.getAttribute("aria-describedby")).toBe(count.id);
+  });
 });

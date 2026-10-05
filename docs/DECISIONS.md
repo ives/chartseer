@@ -598,3 +598,75 @@ It's read through `readCsv` and `inferDataset` with no meta, exactly as an uploa
 - **PNG** comes from drawing that SVG on a 1200×675 canvas. It has no external references, so the canvas isn't tainted. It is 1x as specified; 2x would be a change to the canvas size.
 - **Buttons.** "Download SVG" and "Download PNG" sit in `ChartArea`'s toolbar beside Undo and Redo, only when a chart is drawn. Putting them in `components/charts` would have made an import cycle, since the exporter renders `ChartView`, and would have added them to the gallery. Filenames are the slugified title.
 **Consequences:** Checked in Chrome with the page dark: a line chart and a 20-row horizontal bar chart (with the long bikes attribution) come out light, 1200×675, in Fraunces and Geist, with nothing clipped. `wrapLines`, `downloadName`, `unicodeRanges` and the export layout are unit-tested. The exporter's rendering and rasterising needs a real browser, so it isn't.
+
+## D-060 · 2026-10-02 · Sonnet 5 for the public demo
+
+**Context:** Before going public, the prompt check ran on Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) to compare it with the last Claude Sonnet 5 run (D-048). Cost is worked out from each report's tokens at list prices: Sonnet 5 at $2 / $10 per MTok, Haiku 4.5 at $1 / $5, cache reads at 0.1x and cache writes at 1.25x.
+**Results (29 cases each):**
+
+| | Sonnet 5 | Haiku 4.5 |
+|---|---|---|
+| Expectations met | 28/29 | 28/29 |
+| Charts valid first time / after a retry / failed | 25 / 0 / 0 | 20 / 0 / 0 |
+| Answered without a chart | 4 | 9 |
+| Cost per request | $0.0051 | $0.0026 |
+| Cost of a full 500-message day | $2.56 | $1.28 |
+| First chunk, median / p90 | 1.35 s / 2.49 s | 0.63 s / 0.84 s |
+| Total, median / p90 | 2.71 s / 3.66 s | 1.82 s / 2.38 s |
+| Output tokens, largest / median | 421 / 186 | 289 / 178 |
+
+The models disagreed on six cases:
+- On "What sells best?", "Anything interesting about the weather?" and "When do people ride?", Sonnet drew a sensible chart and Haiku asked what was meant.
+- On "A pie chart of flavours", Sonnet drew bars instead, as the prompt intends. Haiku explained that it can't draw a pie chart and offered bars.
+- On "Map the start stations", Sonnet drew a latitude/longitude scatter; Haiku declined, and missed the expectation.
+- On "Takings for the first half of March only", Sonnet's date range failed the check's filter test; Haiku passed.
+**Decision:** Keep Claude Sonnet 5, the default in `lib/ai/provider.ts`, so nothing changes. A public demo's first message is often vague, and drawing a chart there is the better first impression. The daily cap bounds the price difference to about $1.28 a day. `CHARTSEER_MODEL` can still switch models without a code change.
+**Consequences:** Report: `scripts/reports/check-prompts-2026-10-02T20-48-55-788Z.json`. Haiku stays the fallback if cost or speed matters more than first-message charts.
+
+## D-061 · 2026-10-02 · Daily rate limits
+
+**Context:** A public endpoint that spends money on every call needs caps: 30 messages per visitor per day, and 500 across everyone. No live Redis in tests.
+**Decision:**
+- **Upstash Redis**, through `@upstash/ratelimit` and `@upstash/redis`, with fixed one-day windows. These start at UTC midnight, so "try again tomorrow" is true. Settings come from `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, or the Vercel integration's `KV_REST_API_URL` / `KV_REST_API_TOKEN`.
+- **A `LimitStore` interface** (`peek`, `take`) in `lib/ai/rate-limit.ts`, with an Upstash implementation and an in-memory one. The in-memory store has an injectable clock and is used by the tests, and by development when Upstash isn't configured.
+- **Order:**
+  1. Peek at the global count.
+  2. Take one from the visitor's count.
+  3. Take one from the global count.
+  - The global cap is checked first, as asked, but only peeked at. Taking from it first would let a visitor who is already over their limit use up everyone's 500 by retrying. The final take catches a race for the last global slot.
+- **Visitors** are keyed by the SHA-256 of the first `x-forwarded-for` address, else `x-real-ip`. That is pseudonymous rather than anonymous, since IPv4 hashes can be brute-forced, and keys expire with their day.
+- **Refuse when in doubt.** Upstash's limiter lets requests through when it times out, so its timeout is off, and `checkDailyLimits` applies its own 1-second timeout that refuses. Any store error also refuses. In production with no store configured, the route answers 503 rather than running without limits.
+- **Invalid requests don't use a slot:** the per-request checks (D-062) run first.
+- **The route is now tested** (`app/api/chat/route.test.ts`) with the store and `streamChart` mocked, which revisits D-034's "a route can't be tested directly".
+**Consequences:** Tests cover:
+- 30 messages per address, then a refusal;
+- 500 overall, then a refusal;
+- a blocked visitor not using up the global count;
+- the race for the last slot;
+- the UTC-midnight reset;
+- store failures and timeouts;
+- hashed keys and address parsing;
+- the route's order of checks.
+Upstash itself hasn't been exercised: its settings are on Vercel, not in `.env.local`. A real request against it is still to do.
+
+## D-062 · 2026-10-02 · Per-request limits
+
+**Context:** Even under the daily caps, one request could be expensive: an unbounded reply, a long conversation, or a padded body.
+**Decision:** The numbers live in `lib/spec/chat-limits.ts`, where the server and the chat UI can both read them.
+- **Messages:** user messages of at most 2,000 characters (400, `message_too_long`). The input enforces this with `maxLength` and shows a count in the last 200 characters.
+- **Conversations:** at most 40 messages, counting the visitor's and Chartseer's (400, `conversation_full`). Once a chat holds 40, the input is replaced by "Start a new chat". That remounts the workspace on the same data and puts the cursor in the new input once the data has loaded.
+- **Body size:** at most 256 KB (413, `too_large`). A full 40-message conversation at the length cap, with a chart in every reply, measures 63 KB on the gelato data and 69 KB on the bikes data. Uploads can be wider, since each category column lists up to 200 values.
+- **Output:** `maxOutputTokens: 1024` per model call. The longest reply in either model's prompt check was 421 tokens.
+**Consequences:** Refused messages stay in the chat transcript, as a failed request's message already did.
+
+## D-063 · 2026-10-02 · Limits as friendly notices
+
+**Context:** Hitting a limit, or the API account running out of credit, should read as a notice, not an error.
+**Decision:**
+- **Codes:** refusals carry a `code` in their JSON body, which the chat reads from `APICallError.responseBody`. A 402 or a `billing_error` from Anthropic becomes the stream code `unavailable`.
+- **Messages:**
+  - `daily_limit` and `unavailable`: "The demo has had a busy day — try again tomorrow."
+  - `ip_daily_limit`: "You've used today's 30 messages — try again tomorrow." This one is about the visitor, not the demo, so it is worded that way.
+  - `conversation_full` and `too_large`: offer "Start a new chat".
+- **Presentation:** notices are muted text with `role="status"`. There is no red, no alert and no "Try again", since retrying can't help.
+**Consequences:** Credit errors can't be produced on demand, so the 402 and `billing_error` paths are unit-tested only. In the browser, each refusal was checked by faking the server's response.

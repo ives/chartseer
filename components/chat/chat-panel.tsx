@@ -2,10 +2,10 @@
 
 import type { ChatStatus } from "ai";
 import { useEffect, useRef } from "react";
-import type { DatasetSummary } from "@/lib/spec";
+import { type DatasetSummary, MAX_CONVERSATION_MESSAGES } from "@/lib/spec";
 import { ChatInput } from "./chat-input";
 import { ChatMessage } from "./chat-message";
-import { friendlyError } from "./error-message";
+import { type Limit, friendlyError, limitMessage, limitOf } from "./error-message";
 import { type ChartseerMessage, specsIn, textOf } from "./messages";
 import { useOnline } from "./use-online";
 
@@ -18,13 +18,32 @@ type ChatPanelProps = {
   busy: boolean;
   onSend: (text: string) => void;
   onRetry: () => void;
+  // Clears the chat and chart, keeping the dataset.
+  onNewChat: () => void;
+  // Set when this panel replaces a full chat, whose button had the focus.
+  focusOnMount?: boolean;
 };
 
-export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRetry }: ChatPanelProps) {
+// Limits that a fresh conversation gets round.
+const NEW_CHAT_FIXES: Limit[] = ["conversation_full", "too_large"];
+
+export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRetry, onNewChat, focusOnMount = false }: ChatPanelProps) {
   const online = useOnline();
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const wasBusy = useRef(false);
+  const limit = error ? limitOf(error) : null;
+  // The next message would take the chat over its limit, so it isn't offered (D-063).
+  const full = messages.length >= MAX_CONVERSATION_MESSAGES;
+
+  // A new chat starts with the cursor in the input, once, as soon as the
+  // input is enabled: a demo dataset loads again first.
+  const focusFirst = useRef(focusOnMount);
+  useEffect(() => {
+    if (!focusFirst.current || !dataset) return;
+    focusFirst.current = false;
+    input.current?.focus();
+  }, [dataset]);
 
   // Focus returns to the input after each reply, or after an error.
   useEffect(() => {
@@ -49,7 +68,8 @@ export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRe
             {dataset && messages.map((message) => <ChatMessage key={message.id} message={message} dataset={dataset} />)}
           </ol>
         )}
-        {error && (
+        {limit && !full && <LimitNotice limit={limit} onNewChat={onNewChat} />}
+        {error && !limit && (
           <div role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-sm text-danger">
             <span>{friendlyError(error, online)}</span>
             <button
@@ -74,9 +94,30 @@ export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRe
       {/* On a phone the input is pinned to the bottom of the screen, so it is
           always within reach below the chart (D-055). */}
       <div className="fixed inset-x-0 bottom-0 z-10 bg-surface pb-[env(safe-area-inset-bottom)] md:static md:z-auto md:rounded-b-lg md:pb-0">
-        <ChatInput ref={input} onSend={onSend} busy={busy || !online} disabled={!dataset} />
+        {full ? (
+          <div className="border-t border-border p-3">
+            <LimitNotice limit="conversation_full" onNewChat={onNewChat} />
+          </div>
+        ) : (
+          <ChatInput ref={input} onSend={onSend} busy={busy || !online} disabled={!dataset} />
+        )}
       </div>
     </section>
+  );
+}
+
+// A limit is a notice rather than an error: no red, and no "Try again",
+// which can't help. A fresh chat gets round some of them.
+function LimitNotice({ limit, onNewChat }: { limit: Limit; onNewChat: () => void }) {
+  return (
+    <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted first:mt-0">
+      <span>{limitMessage(limit)}</span>
+      {NEW_CHAT_FIXES.includes(limit) && (
+        <button type="button" onClick={onNewChat} className="rounded-md bg-accent px-3 py-1 font-medium text-accent-foreground">
+          Start a new chat
+        </button>
+      )}
+    </div>
   );
 }
 

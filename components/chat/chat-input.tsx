@@ -1,6 +1,10 @@
 "use client";
 
 import { type KeyboardEvent, type Ref, useId, useState } from "react";
+import { MAX_MESSAGE_CHARS } from "@/lib/spec";
+
+// The count appears once a message is this close to the limit (D-062).
+const COUNT_FROM = MAX_MESSAGE_CHARS - 200;
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -16,6 +20,7 @@ type ChatInputProps = {
 export function ChatInput({ onSend, busy, disabled, ref }: ChatInputProps) {
   const [text, setText] = useState("");
   const id = useId();
+  const countId = useId();
   const canSend = !busy && !disabled && text.trim() !== "";
 
   function send() {
@@ -50,9 +55,16 @@ export function ChatInput({ onSend, busy, disabled, ref }: ChatInputProps) {
         disabled={disabled}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
+        maxLength={MAX_MESSAGE_CHARS}
+        aria-describedby={text.length >= COUNT_FROM ? countId : undefined}
         placeholder="Describe a chart…"
         className="min-h-[3rem] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted disabled:opacity-50"
       />
+      {text.length >= COUNT_FROM && (
+        <span id={countId} className="self-center text-xs text-muted tabular-nums">
+          {text.length.toLocaleString("en-GB")} / {MAX_MESSAGE_CHARS.toLocaleString("en-GB")}
+        </span>
+      )}
       <button
         type="submit"
         disabled={!canSend}

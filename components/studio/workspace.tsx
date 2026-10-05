@@ -23,10 +23,14 @@ type WorkspaceProps = {
   onConversationChange: (active: boolean) => void;
   // A bundled file failed to load; Studio remounts this to fetch it again.
   onRetryLoad: () => void;
+  // The chat is full; Studio remounts this for a fresh chat on the same data.
+  onNewChat: () => void;
+  // This is that fresh chat, so the cursor goes to its input.
+  newChat?: boolean;
 };
 
 // One dataset's data, chat and chart. Studio remounts it on a dataset change.
-export function Workspace({ source, onConversationChange, onRetryLoad }: WorkspaceProps) {
+export function Workspace({ source, onConversationChange, onRetryLoad, onNewChat, newChat = false }: WorkspaceProps) {
   const { meta } = source;
   const fetched = useDataset(source.kind === "bundled" ? source.meta : null);
   const loaded: DatasetState = source.kind === "upload" ? { status: "ready", dataset: source.dataset } : fetched;
@@ -98,6 +102,8 @@ export function Workspace({ source, onConversationChange, onRetryLoad }: Workspa
           busy={chat.busy}
           onSend={chat.send}
           onRetry={chat.retry}
+          onNewChat={onNewChat}
+          focusOnMount={newChat}
         />
       </div>
     </div>

@@ -2,7 +2,8 @@
 import type { ComponentProps } from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { gelatoSummary } from "@/lib/spec";
+import { APICallError } from "ai";
+import { MAX_CONVERSATION_MESSAGES, gelatoSummary } from "@/lib/spec";
 import { ChatPanel } from "./chat-panel";
 
 const props: ComponentProps<typeof ChatPanel> = {
@@ -13,6 +14,7 @@ const props: ComponentProps<typeof ChatPanel> = {
   busy: false,
   onSend: () => {},
   onRetry: () => {},
+  onNewChat: () => {},
 };
 
 function goOffline(offline: boolean) {
@@ -56,5 +58,41 @@ describe("ChatPanel offline", () => {
     expect(screen.getByText("You’re offline. Check your connection, then try again.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+});
+
+describe("ChatPanel limits", () => {
+  beforeEach(() => {
+    Element.prototype.scrollTo = () => {};
+  });
+  afterEach(cleanup);
+
+  it("shows a limit as a notice, without a retry", () => {
+    const limited = new APICallError({ message: "x", url: "/api/chat", requestBodyValues: undefined, statusCode: 429, responseBody: '{"code":"daily_limit"}' });
+    render(<ChatPanel {...props} error={limited} />);
+    expect(screen.getByText("The demo has had a busy day — try again tomorrow.").closest("[role=status]")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("offers a new chat in place of the input once the chat is full", () => {
+    const onNewChat = vi.fn();
+    const messages = Array.from({ length: MAX_CONVERSATION_MESSAGES }, (_, i) => ({
+      id: `m${i}`,
+      role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
+      parts: [{ type: "text" as const, text: `Message ${i}` }],
+    }));
+    render(<ChatPanel {...props} messages={messages} onNewChat={onNewChat} />);
+    expect(screen.queryByLabelText("Describe a chart")).toBeNull();
+    expect(screen.getByText("This chat has reached 40 messages. Start a new chat to continue.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start a new chat" }));
+    expect(onNewChat).toHaveBeenCalled();
+  });
+
+  it("puts the cursor in the input of a new chat, once the data has loaded", () => {
+    const { rerender } = render(<ChatPanel {...props} dataset={null} focusOnMount />);
+    expect(document.activeElement).toBe(document.body);
+    rerender(<ChatPanel {...props} focusOnMount />);
+    expect(document.activeElement).toBe(screen.getByLabelText("Describe a chart"));
   });
 });

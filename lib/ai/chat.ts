@@ -9,7 +9,14 @@ import {
   streamText,
 } from "ai";
 import { z } from "zod";
-import { BackToEvent, ChartSpec, DatasetSummary } from "@/lib/spec";
+import {
+  BackToEvent,
+  ChartSpec,
+  DatasetSummary,
+  type LimitCode,
+  MAX_CONVERSATION_MESSAGES,
+  MAX_MESSAGE_CHARS,
+} from "@/lib/spec";
 import { MAX_ATTEMPTS, backToText, buildSystemPrompt } from "./prompt";
 import { getModel } from "./provider";
 import { createRenderChartTool } from "./tools";
@@ -17,16 +24,21 @@ import { createRenderChartTool } from "./tools";
 // The body of a POST to /api/chat. Messages get a size check here and a full
 // check from the SDK in parseChatRequest.
 const ChatRequestBody = z.strictObject({
-  messages: z.array(z.unknown()).min(1).max(50),
+  messages: z.array(z.unknown()).min(1).max(MAX_CONVERSATION_MESSAGES),
   dataset: DatasetSummary,
   currentSpec: ChartSpec.nullable(),
 });
 
 export type ChatRequest = { messages: UIMessage[]; dataset: DatasetSummary; currentSpec: ChartSpec | null };
 
-export async function parseChatRequest(
-  body: unknown,
-): Promise<{ ok: true; request: ChatRequest } | { ok: false; errors: string[] }> {
+// A refusal the visitor can act on carries a code, which the chat turns into
+// a friendly message (D-063).
+export type ParseFailure = { ok: false; errors: string[]; code?: LimitCode };
+
+export async function parseChatRequest(body: unknown): Promise<{ ok: true; request: ChatRequest } | ParseFailure> {
+  if (isRecord(body) && Array.isArray(body.messages) && body.messages.length > MAX_CONVERSATION_MESSAGES) {
+    return { ok: false, code: "conversation_full", errors: [`messages: at most ${MAX_CONVERSATION_MESSAGES} per conversation`] };
+  }
   const parsed = ChatRequestBody.safeParse(body);
   if (!parsed.success) {
     return { ok: false, errors: parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`) };
@@ -38,8 +50,21 @@ export async function parseChatRequest(
   if (messages.data.some((message) => message.role === "system")) {
     return { ok: false, errors: ["messages: only user and assistant messages are allowed"] };
   }
+  const tooLong = messages.data.some(
+    (message) => message.role === "user" && message.parts.some((part) => part.type === "text" && part.text.length > MAX_MESSAGE_CHARS),
+  );
+  if (tooLong) {
+    return { ok: false, code: "message_too_long", errors: [`messages: at most ${MAX_MESSAGE_CHARS} characters per message`] };
+  }
   return { ok: true, request: { ...parsed.data, messages: messages.data } };
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+// Per model call. The longest reply in the prompt check was 421 tokens (D-062).
+export const MAX_OUTPUT_TOKENS = 1024;
 
 const CACHE = { anthropic: { cacheControl: { type: "ephemeral" } } } as const;
 
@@ -69,6 +94,7 @@ export async function streamChart(request: ChatRequest, model: LanguageModel = g
         part.type === "data-back-to" ? { type: "text", text: backToText(BackToEvent.parse(part.data)) } : undefined,
     }),
     tools,
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
     // Stop once a chart is drawn. After the last failed attempt, the next step
     // can only be prose explaining the problem (D-032).
     stopWhen: [rendered, isStepCount(MAX_ATTEMPTS + 1)],
@@ -85,7 +111,7 @@ export async function streamChart(request: ChatRequest, model: LanguageModel = g
 
 // What the client is told when the stream fails: a stable code, never the
 // provider's message, which can include request details (D-036).
-export type ChatErrorCode = "rate_limited" | "overloaded" | "failed";
+export type ChatErrorCode = "rate_limited" | "overloaded" | "unavailable" | "failed";
 
 export function chatErrorCode(error: unknown): ChatErrorCode {
   // After its own retries, the SDK wraps the last failure.
@@ -94,7 +120,20 @@ export function chatErrorCode(error: unknown): ChatErrorCode {
     typeof cause === "object" && cause !== null && "statusCode" in cause && typeof cause.statusCode === "number"
       ? cause.statusCode
       : undefined;
+  // Out of credit: to a visitor, the demo is simply done for the day (D-063).
+  if (status === 402 || errorType(cause) === "billing_error") return "unavailable";
   if (status === 429) return "rate_limited";
   if (status === 529) return "overloaded";
   return "failed";
+}
+
+// The `error.type` in an Anthropic error body, e.g. "billing_error".
+function errorType(cause: unknown): string | undefined {
+  if (!isRecord(cause) || typeof cause.responseBody !== "string") return undefined;
+  try {
+    const body: unknown = JSON.parse(cause.responseBody);
+    return isRecord(body) && isRecord(body.error) && typeof body.error.type === "string" ? body.error.type : undefined;
+  } catch {
+    return undefined;
+  }
 }

@@ -1,8 +1,8 @@
 import { APICallError, RetryError, simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
-import { type ChartSpec, examples, gelatoSummary } from "@/lib/spec";
-import { type ChatRequest, chatErrorCode, parseChatRequest, streamChart } from "./chat";
+import { type ChartSpec, MAX_CONVERSATION_MESSAGES, MAX_MESSAGE_CHARS, examples, gelatoSummary } from "@/lib/spec";
+import { type ChatRequest, MAX_OUTPUT_TOKENS, chatErrorCode, parseChatRequest, streamChart } from "./chat";
 
 type StreamResult = Extract<NonNullable<ConstructorParameters<typeof MockLanguageModelV4>[0]>["doStream"], unknown[]>[number];
 
@@ -54,6 +54,11 @@ async function run(...responses: StreamResult[]) {
 }
 
 describe("streamChart", () => {
+  it("caps the output of every model call", async () => {
+    const { model } = await run(toolCall(valid));
+    expect(model.doStreamCalls[0]?.maxOutputTokens).toBe(MAX_OUTPUT_TOKENS);
+  });
+
   it("stops once a chart is drawn", async () => {
     const { model, outputs } = await run(toolCall(valid), text("never reached"));
     expect(model.doStreamCalls).toHaveLength(1);
@@ -108,6 +113,34 @@ describe("parseChatRequest", () => {
     const result = await parseChatRequest(input);
     expect(result.ok).toBe(false);
     expect(!result.ok && result.errors[0]).toMatch(error);
+  });
+
+  // Alternating user and assistant messages, n in all.
+  const conversation = (n: number) => ({
+    ...body,
+    messages: Array.from({ length: n }, (_, i) => ({
+      id: `m${i}`,
+      role: i % 2 === 0 ? "user" : "assistant",
+      parts: [{ type: "text", text: `Message ${i}` }],
+    })),
+  });
+
+  it(`accepts a conversation of ${MAX_CONVERSATION_MESSAGES} messages, and refuses one more`, async () => {
+    expect(await parseChatRequest(conversation(MAX_CONVERSATION_MESSAGES))).toMatchObject({ ok: true });
+    expect(await parseChatRequest(conversation(MAX_CONVERSATION_MESSAGES + 1))).toMatchObject({ ok: false, code: "conversation_full" });
+  });
+
+  const saying = (words: string) => ({ ...body, messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: words }] }] });
+
+  it(`accepts a message of ${MAX_MESSAGE_CHARS} characters, and refuses a longer one`, async () => {
+    expect(await parseChatRequest(saying("x".repeat(MAX_MESSAGE_CHARS)))).toMatchObject({ ok: true });
+    expect(await parseChatRequest(saying("x".repeat(MAX_MESSAGE_CHARS + 1)))).toMatchObject({ ok: false, code: "message_too_long" });
+  });
+
+  it("has no code for a refusal the visitor can't act on", async () => {
+    const result = await parseChatRequest({ ...body, messages: [] });
+    expect(result).toMatchObject({ ok: false });
+    expect(!result.ok && result.code).toBeUndefined();
   });
 
   const withPart = (part: unknown) => ({
@@ -166,6 +199,18 @@ describe("chatErrorCode", () => {
     ["a rate limit", apiError(429), "rate_limited"],
     ["an overload", apiError(529), "overloaded"],
     ["an overload after retries", new RetryError({ message: "x", reason: "maxRetriesExceeded", errors: [apiError(529)] }), "overloaded"],
+    ["running out of credit", apiError(402), "unavailable"],
+    [
+      "a billing error in the body",
+      new APICallError({
+        message: "provider details",
+        url: "https://example.test",
+        requestBodyValues: {},
+        statusCode: 400,
+        responseBody: JSON.stringify({ type: "error", error: { type: "billing_error", message: "Your credit balance is too low" } }),
+      }),
+      "unavailable",
+    ],
     ["a server error", apiError(500), "failed"],
     ["anything else", new Error("boom"), "failed"],
   ])("maps %s", (_name, error, code) => {

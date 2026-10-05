@@ -20,8 +20,10 @@ type Source = { kind: "bundled"; id: DatasetId } | { kind: "upload"; upload: Upl
 export function Studio() {
   // Null until the user picks a dataset on the first screen (D-045).
   const [source, setSource] = useState<Source | null>(null);
-  // Bumped to fetch a bundled file again after it failed to load.
-  const [attempt, setAttempt] = useState(0);
+  // Bumped to remount the workspace: to fetch a bundled file again after it
+  // failed to load, or to start a new chat on the same data.
+  const [restarts, setRestarts] = useState(0);
+  const [newChat, setNewChat] = useState(false);
   const [dateOrder, setDateOrder] = useState<DateOrder>("day-first");
   const [conversation, setConversation] = useState(false);
   // A dataset waiting for the user to confirm that the conversation can go.
@@ -51,6 +53,7 @@ export function Studio() {
     setDateOrder("day-first");
     setConversation(false);
     setPending(null);
+    setNewChat(false);
   }
 
   // Replacing a conversation needs a yes first (D-041).
@@ -131,10 +134,18 @@ export function Studio() {
       {source && workspace ? (
         // Remounting on a new dataset clears the data, the chat and the chart history together.
         <Workspace
-          key={`${source.kind === "bundled" ? source.id : `upload-${source.upload.n}`}-${attempt}`}
+          key={`${source.kind === "bundled" ? source.id : `upload-${source.upload.n}`}-${restarts}`}
           source={workspace}
           onConversationChange={setConversation}
-          onRetryLoad={() => setAttempt((n) => n + 1)}
+          onRetryLoad={() => {
+            setNewChat(false);
+            setRestarts((n) => n + 1);
+          }}
+          onNewChat={() => {
+            setNewChat(true);
+            setRestarts((n) => n + 1);
+          }}
+          newChat={newChat}
         />
       ) : (
         <DatasetChooser onPick={(id) => choose({ kind: "bundled", id })} onFile={(file) => void loadFile(file)} />

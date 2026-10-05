@@ -36,13 +36,22 @@ sequenceDiagram
 
 If validation fails, the errors go back to the model as the tool result and it gets **one** retry. If that also fails, the model explains the problem to the user in prose. Nothing half-valid is ever rendered.
 
+Before the model is called, `/api/chat` refuses a request at the first gate it fails (D-061, D-062):
+
+1. The `CHARTSEER_CHAT_ENABLED` switch, and a rate-limit store being configured (503).
+2. A body of at most 256 KB (413).
+3. A valid body: at most 40 messages, and user messages of at most 2,000 characters (400).
+4. Daily limits, per UTC day: the global count of 500 is peeked at, then one is taken from the visitor's 30, then one from the global count (429).
+
+Refusals the visitor can act on carry a `code`, which the chat shows as a notice rather than an error. Running out of API credit reads as "The demo has had a busy day — try again tomorrow" (D-063). Each model call is capped at 1,024 output tokens.
+
 ## 4. Modules and responsibilities
 
 | Module | Owns | Must not |
 |---|---|---|
-| `lib/spec/` | `ChartSpec` schema, semantic validation, example specs | import anything except zod |
+| `lib/spec/` | `ChartSpec` schema, semantic validation, example specs, chat limits shared with the UI | import anything except zod |
 | `lib/data/` | CSV parsing, column inference, `prepareChartData()`, `describeChart()` | know about AI or React |
-| `lib/ai/` | `getModel()`, system prompt, `renderChart` tool definition | be imported by client code |
+| `lib/ai/` | `getModel()`, system prompt, `renderChart` tool definition, request checks, daily rate limits (`rate-limit.ts`) | be imported by client code |
 | `components/charts/` | Chart frame (margins, axes, legend), one renderer per chart type | fetch, parse, or validate |
 | `components/chat/` | Message list, input, streaming states | shape data or touch D3 |
 | `app/` | Routes and wiring | contain business logic |
@@ -180,7 +189,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 **In v1:** CSV upload (≤ 5 MB) plus two bundled demo datasets; column inference; four chart types (line, area, bar, scatter); chat-based creation and refinement; streaming; undo via spec history; dark mode; accessibility as above; a read-only "view spec" toggle (D-058); SVG and PNG download (D-059); rate-limited public demo.
 
-**Not in v1:** user accounts; a database; saved or shared projects; Excel files; multiple datasets or joins; collaboration; model-chosen styling; any model-generated code.
+**Not in v1:** user accounts; a database (Upstash Redis holds only daily message counts under hashed addresses, which expire at the end of the day; D-061); saved or shared projects; Excel files; multiple datasets or joins; collaboration; model-chosen styling; any model-generated code.
 
 **Maybe, if time allows:** shareable links that encode the spec in the URL (no database needed); a fifth chart type.
 
@@ -198,10 +207,11 @@ All errors are collected, not just the first. A check that needs a missing colum
 - [x] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
 - [x] **M4 — Refinement and states:** follow-up edits, undo, CSV upload in the UI, error and empty states.
 - [x] **M5 — Polish:** dark mode, accessibility pass, motion, responsive layout.
-- [ ] **M6 — Ship:** rate limiting, README, demo recording.
+- [ ] **M6 — Ship:** rate limiting and per-request limits (done, part 1: D-060 to D-063), README, demo recording.
 
 ## 14. Open questions
 
+- ~~**Which model for the public demo?**~~ Settled: Claude Sonnet 5. Haiku 4.5 met as many expectations at half the cost and twice the speed, but on vague requests it asked a question where Sonnet drew a chart (D-060).
 - ~~Which two demo datasets?~~ Settled: TfL Santander Cycles and Gelateria Nebbia (D-016, `docs/DATA.md`).
 - **Large scatter plots.** The 25,000-point map is no longer an example (D-051), but a user can still ask for one. Measured in M2 (D-030): the 25,132-point bikes map draws in SVG in about 0.4 s, but a resize takes about 0.5 s per width and its table view about 2 s. Kept as SVG for now. Decide whether to switch to canvas, sample, or cap the table before M5.
 - ~~Is one validation retry enough?~~ Settled: yes. The prompt check found every spec valid first time, and no retry was needed in 24 cases (D-037).
