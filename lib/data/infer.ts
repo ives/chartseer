@@ -1,4 +1,6 @@
-import { type ColumnSummary, type DatasetSummary, MAX_LISTED_VALUES } from "@/lib/spec";
+import type { ColumnSummary, DatasetSummary } from "@/lib/spec";
+// Not from the barrel, which would bring Zod onto the first screen (D-066).
+import { MAX_LISTED_VALUES } from "@/lib/spec/listed-values";
 import { type LabelMeta, deriveLabel } from "./labels";
 import type { ParsedCsv } from "./parse";
 

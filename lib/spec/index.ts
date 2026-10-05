@@ -1,4 +1,5 @@
-export { ColumnSummary, DatasetSummary, MAX_LISTED_VALUES } from "./columns";
+export { ColumnSummary, DatasetSummary } from "./columns";
+export { MAX_LISTED_VALUES } from "./listed-values";
 export { ChartSpec, RenderChartInput, type Annotation, type Filter, type Measure, type TimeUnit } from "./schema";
 export { addBuckets, bucketCount, bucketEnd, bucketStart, requestedRange, type DayRange } from "./time-unit";
 export { editDistance, validateSpec } from "./validate";

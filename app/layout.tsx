@@ -8,9 +8,12 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+// Only the spec view uses it, after a dataset is picked, so the first screen
+// doesn't wait for it (D-066).
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 // The serif, for the wordmark and chart titles only (D-054).
@@ -20,9 +23,25 @@ const fraunces = Fraunces({
   axes: ["opsz"],
 });
 
+const TITLE = "Chartseer — charts from plain English";
+const DESCRIPTION =
+  "Load a CSV, describe the chart you want, and Chartseer draws it. The AI writes a validated chart spec, never code.";
+
+// What a shared link shows (D-065). The card itself is app/opengraph-image.tsx;
+// metadataBase makes its URL absolute, which LinkedIn needs.
 export const metadata: Metadata = {
-  title: "Chartseer",
-  description: "Load a CSV and describe the chart you want in plain English.",
+  metadataBase: new URL("https://chartseer.vercel.app"),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Chartseer",
+    locale: "en_GB",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 // The on-screen keyboard shrinks the layout rather than covering the chat

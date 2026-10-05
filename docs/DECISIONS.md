@@ -670,3 +670,61 @@ Upstash itself hasn't been exercised: its settings are on Vercel, not in `.env.l
   - `conversation_full` and `too_large`: offer "Start a new chat".
 - **Presentation:** limit messages use the error colour (`--danger`) with `role="alert"`, like other chat errors, but without "Try again", since retrying can't help. *Revised 2026-10-05:* they were first muted text with `role="status"`, but grey on the chat's grey surface didn't read as a problem.
 **Consequences:** Credit errors can't be produced on demand, so the 402 and `billing_error` paths are unit-tested only. In the browser, each refusal was checked by faking the server's response.
+
+## D-064 · 2026-10-05 · The README for launch
+
+**Context:** The README still described M2 and listed scaffold URLs. It is the first thing a visitor to the repository reads.
+**Decision:**
+- **Order:**
+  1. a one-sentence pitch;
+  2. the live link;
+  3. the demo GIF (`docs/demo.gif`, still to be recorded, so it shows as a broken image until then);
+  4. how it works, in five paragraphs and a Mermaid diagram of the request lifecycle;
+  5. eleven key decisions, one line each, linking to this file;
+  6. quality and cost;
+  7. the stack;
+  8. running it locally;
+  9. data attribution;
+  10. the licence.
+- **Figures** come from a fresh check-prompts run on Claude Sonnet 5 (`check-prompts-2026-10-05T20-28-36-260Z.json`), so they match the deployed model and the 1,024-token output cap. The most recent run before it was Haiku's.
+- **Results:**
+  - 28/29 expectations met, and 25/25 charts valid first time;
+  - median 2.2 s, p90 5.0 s;
+  - 94% of input tokens read from cache;
+  - about $0.006 per request, about $3 for a full 500-message day.
+  - The largest reply across all of a case's steps was 729 output tokens; each call is capped at 1,024.
+- **Links** into this file use GitHub's heading slugs, dates included, and were generated from the headings, not typed.
+- **Licence:** MIT, © 2026 Ives (`LICENSE`, and `"license": "MIT"` in `package.json`).
+**Consequences:** The README's figures go stale when the prompt or model changes. Re-run check-prompts and update them together.
+
+## D-065 · 2026-10-05 · Link previews
+
+**Context:** A shared link showed only "Chartseer" and a one-line description. There was no Open Graph or Twitter card, and no base URL for absolute image links, which LinkedIn requires.
+**Decision:**
+- `metadataBase` is `https://chartseer.vercel.app`.
+- **Title:** "Chartseer — charts from plain English". **Description:** "Load a CSV, describe the chart you want, and Chartseer draws it. The AI writes a validated chart spec, never code."
+- `openGraph` (website, en_GB, site name), and a `summary_large_image` Twitter card, which Slack also reads.
+- **The card** is `app/opengraph-image.tsx`, drawn at build time with `ImageResponse` from `next/og`: 1200×630, the Fraunces wordmark and its forest mark, the pitch in Geist, and a small stacked bar sketch in the light chart colours.
+- **The card's fonts:** `ImageResponse` reads only TTF, OTF or WOFF, and `next/font` serves WOFF2. So two static fonts are committed in `assets/og-fonts/`, with their SIL Open Font Licence texts: Fraunces SemiBold at optical size 72, and Geist Regular, 72 KB each. They come from Google Fonts' CSS API, which serves a whole static TTF to a plain user agent.
+**Consequences:** The card is generated once per build and served as a static PNG. Check it after deploying with LinkedIn's Post Inspector and a Slack unfurl.
+
+## D-066 · 2026-10-05 · Lighthouse, and a lighter first screen
+
+**Context:** Lighthouse 13.5 (`npx lighthouse@latest`, not a dependency) on the live site before this change:
+
+| | Performance | Accessibility | Best practices | SEO |
+|---|---|---|---|---|
+| Mobile (default) | 79 | 100 | 100 | 100 |
+| Desktop (`--preset=desktop`) | 100 | 100 | 100 | 100 |
+
+On mobile, LCP was 3.4 s and total blocking time 490 ms. The LCP element was the TfL attribution text on the first screen. The page was waiting on JavaScript: 357 KB gzipped on the first screen, with about 206 KB of it unused. The first screen is the dataset chooser, yet it loaded the chat, the charts, the AI SDK and Zod.
+**Decision:**
+- **The workspace loads lazily.** `Studio` loads `Workspace` with `next/dynamic` once a dataset is picked, showing a skeleton while it loads.
+- **Zod stays off the first screen.** `lib/data/infer.ts`, which the first screen needs for uploads, imported `MAX_LISTED_VALUES` from the `lib/spec` barrel, and that loaded every schema. The constant moved to `lib/spec/listed-values.ts`, which has no Zod, and `infer.ts` imports it from there. The barrel still re-exports it.
+- **Geist Mono isn't preloaded.** Only the spec view uses it, after a dataset is picked.
+- **No robots or sitemap:** SEO already scored 100.
+**Consequences:**
+- First-screen JavaScript went from 357 KB to 180 KB gzipped.
+- On a local production build, mobile performance rose to 97: LCP 2.1 s, total blocking time 150 ms.
+- Picking a dataset now waits for the workspace chunk, which is cached after the first time.
+- Live figures after deploying are recorded below.

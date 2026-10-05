@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_LISTED_VALUES } from "./listed-values";
 
 const columnBase = {
   name: z.string().describe("Exact column name, as used in chart specs"),
@@ -23,9 +24,6 @@ const DateColumn = z.strictObject({
   examples: z.array(z.string()).max(5).describe("Up to 5 example values, ISO 8601"),
 });
 
-// A category column with this many distinct values or fewer lists them all,
-// so filter values can be checked. Enough for every area in the bikes data (D-039).
-export const MAX_LISTED_VALUES = 200;
 
 const CategoryColumn = z
   .strictObject({

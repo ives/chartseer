@@ -207,7 +207,7 @@ All errors are collected, not just the first. A check that needs a missing colum
 - [x] **M3 — The AI loop:** `/api/chat`, `renderChart` tool, system prompt, streaming chat UI, validation retry, the prompt-check script.
 - [x] **M4 — Refinement and states:** follow-up edits, undo, CSV upload in the UI, error and empty states.
 - [x] **M5 — Polish:** dark mode, accessibility pass, motion, responsive layout.
-- [ ] **M6 — Ship:** rate limiting and per-request limits (done, part 1: D-060 to D-063), README, demo recording.
+- [x] **M6 — Ship:** rate limiting and per-request limits (D-060 to D-063); README, licence, link previews and a Lighthouse pass (D-064 to D-066). The demo GIF is still to be recorded, at `docs/demo.gif`.
 
 ## 14. Open questions
 

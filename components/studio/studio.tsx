@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { type DragEvent, useMemo, useRef, useState } from "react";
 import { type DatasetMeta, datasets } from "@/lib/data/datasets";
 import { type DateOrder, inferDataset } from "@/lib/data/infer";
@@ -11,7 +12,15 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { DatasetChooser } from "./dataset-chooser";
 import { type DatasetId, DatasetPicker } from "./dataset-picker";
 import { PRIVACY_NOTE, UploadButton } from "./upload-button";
-import { Workspace, type WorkspaceSource } from "./workspace";
+import type { WorkspaceSource } from "./workspace";
+
+// The workspace brings the chat, the charts, the AI SDK and Zod. None of it is
+// needed on the first screen, so it loads once a dataset is picked (D-066).
+const Workspace = dynamic(() => import("./workspace").then((m) => m.Workspace), {
+  loading: () => (
+    <div aria-busy="true" aria-label="Loading" className="h-[360px] rounded-lg bg-surface motion-safe:animate-pulse" />
+  ),
+});
 
 // Each upload gets its own n, so loading a file again starts afresh.
 type Upload = { n: number; name: string; csv: ParsedCsv };
