@@ -67,11 +67,10 @@ describe("ChatPanel limits", () => {
   });
   afterEach(cleanup);
 
-  it("shows a limit as a notice, without a retry", () => {
+  it("shows a limit as an error, without a retry", () => {
     const limited = new APICallError({ message: "x", url: "/api/chat", requestBodyValues: undefined, statusCode: 429, responseBody: '{"code":"daily_limit"}' });
     render(<ChatPanel {...props} error={limited} />);
-    expect(screen.getByText("The demo has had a busy day — try again tomorrow.").closest("[role=status]")).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("The demo has had a busy day — try again tomorrow.");
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 

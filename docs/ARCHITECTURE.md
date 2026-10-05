@@ -43,7 +43,7 @@ Before the model is called, `/api/chat` refuses a request at the first gate it f
 3. A valid body: at most 40 messages, and user messages of at most 2,000 characters (400).
 4. Daily limits, per UTC day: the global count of 500 is peeked at, then one is taken from the visitor's 30, then one from the global count (429).
 
-Refusals the visitor can act on carry a `code`, which the chat shows as a notice rather than an error. Running out of API credit reads as "The demo has had a busy day — try again tomorrow" (D-063). Each model call is capped at 1,024 output tokens.
+Refusals the visitor can act on carry a `code`, which the chat shows as an error with a specific message and no retry. Running out of API credit reads as "The demo has had a busy day — try again tomorrow" (D-063). Each model call is capped at 1,024 output tokens.
 
 ## 4. Modules and responsibilities
 

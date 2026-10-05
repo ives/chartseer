@@ -661,12 +661,12 @@ Upstash itself hasn't been exercised: its settings are on Vercel, not in `.env.l
 
 ## D-063 · 2026-10-02 · Limits as friendly notices
 
-**Context:** Hitting a limit, or the API account running out of credit, should read as a notice, not an error.
+**Context:** Hitting a limit, or the API account running out of credit, needs a friendly message rather than a generic error.
 **Decision:**
 - **Codes:** refusals carry a `code` in their JSON body, which the chat reads from `APICallError.responseBody`. A 402 or a `billing_error` from Anthropic becomes the stream code `unavailable`.
 - **Messages:**
   - `daily_limit` and `unavailable`: "The demo has had a busy day — try again tomorrow."
   - `ip_daily_limit`: "You've used today's 30 messages — try again tomorrow." This one is about the visitor, not the demo, so it is worded that way.
   - `conversation_full` and `too_large`: offer "Start a new chat".
-- **Presentation:** notices are muted text with `role="status"`. There is no red, no alert and no "Try again", since retrying can't help.
+- **Presentation:** limit messages use the error colour (`--danger`) with `role="alert"`, like other chat errors, but without "Try again", since retrying can't help. *Revised 2026-10-05:* they were first muted text with `role="status"`, but grey on the chat's grey surface didn't read as a problem.
 **Consequences:** Credit errors can't be produced on demand, so the 402 and `billing_error` paths are unit-tested only. In the browser, each refusal was checked by faking the server's response.

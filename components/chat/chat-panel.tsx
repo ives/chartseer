@@ -106,11 +106,11 @@ export function ChatPanel({ messages, dataset, status, error, busy, onSend, onRe
   );
 }
 
-// A limit is a notice rather than an error: no red, and no "Try again",
-// which can't help. A fresh chat gets round some of them.
+// A limit reads as an error, but with no "Try again", which can't help. A
+// fresh chat gets round some of them (D-063).
 function LimitNotice({ limit, onNewChat }: { limit: Limit; onNewChat: () => void }) {
   return (
-    <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted first:mt-0">
+    <div role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-sm text-danger first:mt-0">
       <span>{limitMessage(limit)}</span>
       {NEW_CHAT_FIXES.includes(limit) && (
         <button type="button" onClick={onNewChat} className="rounded-md bg-accent px-3 py-1 font-medium text-accent-foreground">
