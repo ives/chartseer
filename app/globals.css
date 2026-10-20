@@ -55,6 +55,42 @@
      points are translucent, so overplotting shows density (D-027, D-028). */
   --chart-area-opacity: 0.12;
   --chart-point-opacity: 0.5;
+
+  /* The landing page (D-068). Design names in docs/design/README.md map as:
+     --surface (#fff) → --card, --surface-muted → --surface, --text-muted →
+     --secondary, --text-subtle → --muted, --border → --border-card. */
+  --page: #fbfbf9;
+  --card: #ffffff;
+  --surface-track: #f3f2ee;
+  --border-card: #e8e7e1;
+  --border-faint: #f0efea;
+  --border-strong: #d6d5ce;
+  --secondary: #55544f;
+  --ink: #111110;
+  --on-ink: #ffffff;
+  --ink-panel: #121211;
+  --ink-code: #1b1b19;
+  --accent-soft: #e9f0ec;
+  --accent-soft-border: #c9dcd2;
+  --accent-strong: #1f3f31;
+  --tag-real: #e8f0fb;
+  --tag-real-foreground: #1f57a8;
+  --tag-invented: #fbefe6;
+  --tag-invented-foreground: #a4481a;
+  /* On the dark panels, which stay dark in both themes. */
+  --accent-on-dark: #8ccab0;
+  --on-dark-muted: #b5b4ae;
+  --on-dark-subtle: #a3a29c;
+  --code-text: #e8e7e1;
+  --code-string: #f2c38b;
+}
+
+/* Cards are flat with a border; only lifted items get a shadow (D-068). */
+@theme {
+  --shadow-lifted: 0 1px 2px rgba(17, 17, 16, 0.04), 0 32px 80px -32px rgba(17, 17, 16, 0.22);
+  --shadow-raised: 0 8px 24px -12px rgba(17, 17, 16, 0.15);
+  --shadow-accent: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 8px 24px -8px rgba(46, 90, 71, 0.55);
+  --shadow-panel: 0 32px 80px -32px rgba(17, 17, 16, 0.4);
 }
 
 @theme inline {
@@ -67,8 +103,32 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-focus: var(--focus);
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-surface-track: var(--surface-track);
+  --color-border-card: var(--border-card);
+  --color-border-faint: var(--border-faint);
+  --color-border-strong: var(--border-strong);
+  --color-secondary: var(--secondary);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-ink-panel: var(--ink-panel);
+  --color-ink-code: var(--ink-code);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-border: var(--accent-soft-border);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-on-dark: var(--accent-on-dark);
+  --color-tag-real: var(--tag-real);
+  --color-tag-real-foreground: var(--tag-real-foreground);
+  --color-tag-invented: var(--tag-invented);
+  --color-tag-invented-foreground: var(--tag-invented-foreground);
+  --color-on-dark-muted: var(--on-dark-muted);
+  --color-on-dark-subtle: var(--on-dark-subtle);
+  --color-code-text: var(--code-text);
+  --color-code-string: var(--code-string);
   --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-fraunces);
+  --font-serif-italic: var(--font-fraunces-italic);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -116,6 +176,26 @@
     --chart-partial-opacity: 0.5;
     --chart-area-opacity: 0.2;
     --chart-point-opacity: 0.6;
+
+    /* The landing page (D-068). The dark panels lift a step off the page. */
+    --page: #0a0a0a;
+    --card: #121211;
+    --surface-track: #1c1c1a;
+    --border-card: #262624;
+    --border-faint: #1c1c1a;
+    --border-strong: #3a3a37;
+    --secondary: #b5b4ad;
+    --ink: #ededed;
+    --on-ink: #0a0a0a;
+    --ink-panel: #1a1a18;
+    --ink-code: #232321;
+    --accent-soft: #14241d;
+    --accent-soft-border: #2b4a3d;
+    --accent-strong: #a8dcc6;
+    --tag-real: #13243b;
+    --tag-real-foreground: #93bbf0;
+    --tag-invented: #2e1d10;
+    --tag-invented-foreground: #f0aa7c;
   }
 }
 
@@ -159,6 +239,26 @@
   --chart-partial-opacity: 0.5;
   --chart-area-opacity: 0.2;
   --chart-point-opacity: 0.6;
+
+  /* The landing page (D-068). The dark panels lift a step off the page. */
+  --page: #0a0a0a;
+  --card: #121211;
+  --surface-track: #1c1c1a;
+  --border-card: #262624;
+  --border-faint: #1c1c1a;
+  --border-strong: #3a3a37;
+  --secondary: #b5b4ad;
+  --ink: #ededed;
+  --on-ink: #0a0a0a;
+  --ink-panel: #1a1a18;
+  --ink-code: #232321;
+  --accent-soft: #14241d;
+  --accent-soft-border: #2b4a3d;
+  --accent-strong: #a8dcc6;
+  --tag-real: #13243b;
+  --tag-real-foreground: #93bbf0;
+  --tag-invented: #2e1d10;
+  --tag-invented-foreground: #f0aa7c;
 }
 
 /* A refinement that can't ease crossfades (D-053). Only started from JS,
@@ -186,5 +286,18 @@ body {
   :focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
+  }
+}
+
+/* The landing hero's dot grid, fading out from the top centre (D-068). */
+.hero-dots {
+  background-image: radial-gradient(var(--border-strong) 1px, transparent 1.2px);
+  background-size: 20px 20px;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 25%, #000 30%, transparent 75%);
+}
+@media (min-width: 48rem) {
+  .hero-dots {
+    background-size: 22px 22px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%);
   }
 }

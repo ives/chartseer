@@ -1,6 +1,7 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,6 +22,21 @@ const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
   axes: ["opsz"],
+});
+
+// Fraunces italic 500, for the landing page's two accent words (D-068): a 6 KB
+// subset holding only their glyphs, with the optical-size axis. The full italic
+// is 82 KB and cost the landing page its Lighthouse score. Declared here so its
+// @font-face rides in the shared stylesheet rather than a second, render-blocking
+// one; not preloaded, so other pages never fetch it. To regenerate, download the
+// woff2 that https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500&text=plainEnglish.Justask
+// names (ask with a current browser's User-Agent). Licence: fonts/fraunces-OFL.txt.
+const frauncesItalic = localFont({
+  src: "./fonts/fraunces-italic-accent.woff2",
+  variable: "--font-fraunces-italic",
+  style: "italic",
+  weight: "500",
+  preload: false,
 });
 
 const TITLE = "Chartseer — charts from plain English";
@@ -56,7 +72,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${frauncesItalic.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}

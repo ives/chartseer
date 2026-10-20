@@ -760,3 +760,50 @@ On mobile, LCP was 3.4 s and total blocking time 490 ms. The LCP element was the
   | `/app` | 94–96 (LCP 2.7–2.8 s, TBT 80–150 ms) | 100 | 96 | 100 |
 
   Best practices loses 4 only because `/_vercel/insights/script.js` (Web Analytics) is a 404 off Vercel. A fourth, outlying run of `/` scored 89. Live figures are still to be recorded after deploying.
+
+## D-068 · 2026-10-20 · The landing page
+
+**Context:** The placeholder at `/` (D-067) gave way to the designed page in `docs/design/landing-desktop.html` and `landing-mobile.html`: a top bar, hero with a product shot, How it works, Demos, Under the hood, a closing call to action and a footer. Copy is final; facts must come from the app's own dataset meta.
+**Decision:**
+- **Server first.** Every section is a server component in `components/landing/`. The client code is two islands: `UploadProvider` (page-wide drop, the drop overlay, one hidden file input, an error bar, and the D-067 hand-off with the CSV reader loaded on demand), with the `UploadCsvButton`s that open its picker; and `MenuButton`, the phone menu. The upload buttons are real `<button>`s, unlike the app's `<label>`-based `UploadButton`. An upload error shows in a `role="alert"` bar at the bottom of the screen, with Dismiss.
+- **The phone menu** (below 768 px) is a disclosure button with `aria-expanded` and `aria-controls`, opening a plain panel under the top bar: no modal and no focus trap. A link or Escape closes it, and Escape returns focus to the button. The design's breakpoint is 760 px; Tailwind's `md` (768 px) is used instead.
+- **Facts come from `BundledDataset`.** New fields: `scale` ("About 25,000 rows", "Two years, five shops"), `period`, `credit` (the short attribution line), `invented` and `sampleEvery` (30.8). The app's `summary`, `note` and `attribution` are now built from the same constants, unchanged in wording, and a test checks the facts against the data (row count, date range, shop count). The bikes "Try asking" prompt is `starters[0]`, identical to the design; the gelato one ("Weekly scoops by shop, stacked") is design copy, not a prompt measured by check-prompts.
+- **Attribution.** The bikes card shows the short credit, "Powered by TfL Open Data · a 1-in-30.8 sample", as designed, not the full TfL/OS line DATA.md asks for wherever the dataset is displayed. The landing page shows drawings, not the dataset; the app, its charts and downloads keep the full attribution, and the footer says Chartseer is not an official TfL product.
+- **Copy that differs between the two design files** (the pill, the privacy line, "Open the app" / "Open app", the strip's sub-line) is rendered in both versions, with one hidden per breakpoint.
+- **Illustrations are real data.** `illustration-data.ts` holds journeys by hour (weekday and weekend) and scoops by shop per week, counted from `public/data`; a test recounts them. The drawings are static SVG computed on the server: grouped bars in the product shot (one layout for phones, one wider), lines on the bikes card with the 8am and 5pm peaks ringed, stacked areas per fortnight on the gelato card (the weekly spikes are the invented heatwaves, kept), and two days of weekday bars behind the closing panel. Bars are one path per series and stacked layers are drawn back to front from the baseline, so each needs one edge: the SVG numbers were the bulk of the HTML.
+- **The product shot is one image:** `role="img"` with a label, so its pretend chat, chips and input aren't read as controls. Its chart title is a `<p>`, so headings run `h1` (the hero), section `h2`s, card `h3`s.
+- **The spec card shows a real spec:** the `bikes-hourly-by-day-type` example from `lib/spec/examples.ts`, trimmed to `version`, `type`, `title`, `x.field`, `y.aggregate` and `series.field`. It is a line chart and its title is the example's, so it differs from the design's placeholder bar spec. A test runs it through `parseSpec` against the bikes summary and checks the card shows exactly that JSON. Long lines wrap on phones.
+- **GitHub** links read `repository` from `package.json`, added for this: `https://github.com/ives/chartseer`.
+- **Fonts.** The accent words use Fraunces italic 500 with the optical-size axis, which draws the narrower display cut the design measures (the italic without it is 15% wider and wraps the hero heading). The full italic from `next/font/google` is 82 KB, and as a font the landing page requests before first paint it cost about 0.6 s of simulated FCP. It is instead a 6 KB subset holding only the glyphs of "plain English." and "Just ask.", downloaded once from the Google Fonts API (`text=` parameter), committed as `app/fonts/fraunces-italic-accent.woff2` with its OFL licence, and loaded with `next/font/local`. It is declared in the root layout with `preload: false`: declared in a landing module, it got a stylesheet of its own, a second render-blocking request. A test fails if the accent words use any other glyph. `/app` still preloads the same two fonts, gains no request, and never fetches the italic.
+- **Tokens.** Existing names keep their meaning, so the workspace doesn't change (task 03). Reused: `--accent`; `--surface` for the design's `--surface-muted` (`#f6f6f3`); `--muted` for `--text-subtle` (`#6b6a65`); `--foreground` for `--text`; `--border` for `--border-control`. New, light → dark:
+
+  | Token (design name) | Light | Dark |
+  |---|---|---|
+  | `--page` | `#fbfbf9` | `#0a0a0a` |
+  | `--card` (`--surface`) | `#ffffff` | `#121211` |
+  | `--surface-track` | `#f3f2ee` | `#1c1c1a` |
+  | `--border-card` (`--border`) | `#e8e7e1` | `#262624` |
+  | `--border-faint` | `#f0efea` | `#1c1c1a` |
+  | `--border-strong` (dashed strip, hero dots) | `#d6d5ce` | `#3a3a37` |
+  | `--secondary` (`--text-muted`) | `#55544f` | `#b5b4ad` |
+  | `--ink` / `--on-ink` | `#111110` / `#ffffff` | `#ededed` / `#0a0a0a` |
+  | `--ink-panel` | `#121211` | `#1a1a18` |
+  | `--ink-code` | `#1b1b19` | `#232321` |
+  | `--accent-soft` / `--accent-soft-border` / `--accent-strong` | `#e9f0ec` / `#c9dcd2` / `#1f3f31` | `#14241d` / `#2b4a3d` / `#a8dcc6` |
+  | `--tag-real` / `--tag-real-foreground` | `#e8f0fb` / `#1f57a8` | `#13243b` / `#93bbf0` |
+  | `--tag-invented` / `--tag-invented-foreground` | `#fbefe6` / `#a4481a` | `#2e1d10` / `#f0aa7c` |
+
+  Fixed in both themes, for the dark panels: `--accent-on-dark` `#8ccab0`, `--on-dark-muted` `#b5b4ae`, `--on-dark-subtle` `#a3a29c`, `--code-text` `#e8e7e1`, `--code-string` `#f2c38b`. In dark mode the dark panels lift to `#1a1a18` so they don't merge with the page, and `--ink` flips light, so dark buttons become light ones. Shadows are four `@theme` values (`shadow-lifted`, `-raised`, `-accent`, `-panel`). Every text pair passes AA in both themes; the lowest are `--muted` on `--accent-soft` (4.68:1, light) and `--muted` on `--accent-soft` (6.31:1, dark).
+- **Sizes from the design are converted to border-box.** The design files are content-box, so a `max-width` or `flex-basis` there excludes padding; the page adds it back (for example step cards `basis-[326px]` for the design's 300 px plus padding), so cards wrap from three or two columns to one at the same widths.
+**Consequences:**
+- First-load JavaScript for `/` is 177 KB gzipped, unchanged from the placeholder and under the D-066 budget; `/app` is 183 KB. Zod, the examples and the CSV reader stay out of the client bundle.
+- The page's HTML is 20 KB gzipped. The App Router sends the server-rendered tree twice, as markup and as the RSC payload, so it can't fit in one round trip.
+- Lighthouse 13.5, mobile, local production build (`pnpm build && pnpm start`), three runs each:
+
+  | | Performance | Accessibility | Best practices | SEO |
+  |---|---|---|---|---|
+  | `/` | 92 (FCP 1.4 s, LCP 3.2 s, TBT 80–100 ms) | 100 | 96 | 100 |
+  | `/app` | 95 (LCP 2.7–2.8 s, TBT 50–110 ms) | 100 | 96 | 100 |
+
+  **`/` misses the target of 95.** Observed LCP (the hero heading) is 0.15 s; the simulated slow-4G figure is what costs the score. The placeholder scored 97–99 on the same machine. Without the italic at all, the page reached 92–94, so the remaining gap is the page's own weight, not the font. Measured along the way: the full Google italic, preloaded or not, 87–92. Best practices loses 4 only to the Web Analytics 404 off Vercel, as in D-067.
+- Checked in Chrome at 1440 px, 1024 px and 390 px against the design files, in both themes (`data-theme`), with axe in the browser: no violations, colour contrast included. Contrast checks axe couldn't settle are text over the hero's dot grid, the tick labels inside the product shot, and decorative check marks.

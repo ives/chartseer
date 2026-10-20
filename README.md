@@ -9,6 +9,8 @@ Chartseer turns a CSV and a plain-English request into a chart: the AI fills in 
 
 ## How it works
 
+The [landing page](https://chartseer.vercel.app) walks through it in three steps; here is the detail.
+
 You pick a demo dataset or upload a CSV of your own. It is parsed and profiled in your browser and never leaves it: the model sees only a summary of the columns (names, kinds, ranges, category values) and at most 10 sample rows.
 
 You describe the chart you want. The model's only way to answer, apart from prose, is to call one tool, `renderChart`, whose input is a chart spec: JSON that says what to plot, not how it looks. It never writes JavaScript, D3, SQL or HTML.
