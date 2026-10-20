@@ -4,7 +4,7 @@ export const PRIVACY_NOTE =
   "Your file stays on your device. Column names and a few sample rows are sent to the AI to understand your data.";
 
 // A file picker styled as a button. Studio reads the file and reports any error.
-export function UploadButton({ onFile }: { onFile: (file: File) => void }) {
+export function UploadButton({ onFile, label = "Upload Own CSV" }: { onFile: (file: File) => void; label?: string }) {
   const id = useId();
   return (
     <div className="text-sm">
@@ -24,7 +24,7 @@ export function UploadButton({ onFile }: { onFile: (file: File) => void }) {
         htmlFor={id}
         className="cursor-pointer rounded-md border border-border px-2 py-1 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus"
       >
-        Upload Own CSV
+        {label}
       </label>
     </div>
   );

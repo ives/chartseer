@@ -728,3 +728,35 @@ On mobile, LCP was 3.4 s and total blocking time 490 ms. The LCP element was the
 - On a local production build, mobile performance rose to 97: LCP 2.1 s, total blocking time 150 ms.
 - Picking a dataset now waits for the workspace chunk, which is cached after the first time.
 - Live figures after deploying are recorded below.
+
+## D-067 · 2026-10-20 · Routes for a landing page, and deep links into the app
+
+**Context:** A designed landing page will live at `/`, so the app moves to `/app`. The landing page's buttons need to open the app at the right place: a demo already loaded, or the visitor's own file.
+**Decision:**
+- **Routes:**
+
+  | URL | What it shows |
+  |---|---|
+  | `/` | The landing page. For now a plain placeholder (`components/landing/landing-page.tsx`) holding every link the design needs. |
+  | `/app` | The dataset chooser, as before. Its title is "Chartseer — Studio"; the link-preview metadata (D-065) is inherited from the layout. |
+  | `/app?dataset=<id>` | The workspace with that demo loaded, skipping the chooser. The ids are the keys of `datasets`: `bikes`, `gelato`. An unknown id shows the chooser and quietly becomes `/app`. |
+
+- **The URL follows the dataset** once a switch actually happens, after the D-041 confirmation if one is needed: a demo gives `/app?dataset=<id>`, and an upload gives `/app`, because a file can't be reopened from a URL. A new chat (D-062) keeps the URL.
+- **`replace`, not `push`.** Each dataset is a state of one page, not a page the visitor went to. With `push`, Back would step through every dataset tried before leaving. With `replace`, Back from the app returns to the landing page in one step.
+- **Reading the URL** happens in `components/studio/studio.tsx` with `useSearchParams`, inside a `<Suspense>` boundary so `/app` is still prerendered. The fallback is the header and the loading skeleton, not the chooser, so a deep link never flashes the chooser before the workspace.
+- **An upload from the landing page is handed over in memory.** A browser opens a file picker only on a click, so the landing page can't send the visitor to a picker in the app. It reads the file itself, with the app's checks and reader (`readUpload`, so `checkFile` then `readCsv`, with the same error messages), puts the result in a module-level store (`components/studio/handoff.ts`), and navigates to `/app` with `push`. Studio peeks at the store while rendering its first state, so the workspace opens with no flash of the chooser, and clears it once mounted. Nothing goes to `localStorage`, `sessionStorage`, the URL or the server, as the privacy note promises (D-005). The CSV reader loads with a dynamic `import()` when a file arrives, so it costs the landing page nothing up front.
+- **Leaving asks first.** The wordmark links to `/`. With a conversation under way (the D-041 condition), it opens "Leave and lose this chat?" with Leave and Stay, on the same `ConfirmDialog`, which now takes a `cancelLabel` and gets its heading id from `useId`, since two dialogs are now mounted together. Escape means Stay, and Stay puts focus back on the wordmark. The check uses `Link`'s `onNavigate`, so Cmd- or Ctrl-click still opens a new tab without asking, since that loses nothing.
+- **Back isn't intercepted:** no `popstate` trap and no `beforeunload` prompt. Back is an explicit request to leave.
+- **Shared with the landing page:** dropping a file anywhere moved from Studio into `useFileDrop`, and its overlay into `DropOverlay`. `UploadButton` takes a `label`.
+- **In tests,** `next/navigation` is mocked, and `next/link` is replaced by an anchor that keeps the `onNavigate` contract, because the real `Link` calls `onNavigate` only when the App Router is mounted.
+**Consequences:**
+- A refresh on `/app` after a hand-off shows the chooser, because the file was only ever in memory. A refresh on `/app?dataset=<id>` reopens that demo with a fresh chat.
+- The landing page's first-load JavaScript is 178 KB gzipped, under the D-066 budget, with no Zod, AI SDK, chat, chart or CSV-reader code. `/app` loads 184 KB.
+- Lighthouse 13.5, mobile, on a local production build (`pnpm build && pnpm start`), three runs each:
+
+  | | Performance | Accessibility | Best practices | SEO |
+  |---|---|---|---|---|
+  | `/` | 97–100 (LCP 1.7–2.6 s, TBT 40–60 ms) | 100 | 96 | 100 |
+  | `/app` | 94–96 (LCP 2.7–2.8 s, TBT 80–150 ms) | 100 | 96 | 100 |
+
+  Best practices loses 4 only because `/_vercel/insights/script.js` (Web Analytics) is a 404 off Vercel. A fourth, outlying run of `/` scored 89. Live figures are still to be recorded after deploying.

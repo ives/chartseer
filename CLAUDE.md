@@ -26,6 +26,7 @@ lib/data/             CSV parsing, column inference, spec → chart data. Pure f
 lib/ai/               Model selection, system prompt, tool definition. Server-only.
 components/charts/    D3 renderers. Import types from lib/spec and lib/data only.
 components/chat/      Chat UI.
+components/landing/   The landing page at /. No chat, chart or Zod code.
 components/ui/        shadcn/ui primitives. Generated; edit sparingly.
 ```
 

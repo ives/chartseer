@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type DragEvent, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { type DatasetMeta, datasets } from "@/lib/data/datasets";
 import { type DateOrder, inferDataset } from "@/lib/data/infer";
 import type { ParsedCsv } from "@/lib/data/parse";
@@ -11,24 +12,61 @@ import { AppHeader } from "./app-header";
 import { ConfirmDialog } from "./confirm-dialog";
 import { DatasetChooser } from "./dataset-chooser";
 import { type DatasetId, DatasetPicker } from "./dataset-picker";
+import { DropOverlay } from "./drop-overlay";
+import { clearHandoff, peekHandoff } from "./handoff";
 import { PRIVACY_NOTE, UploadButton } from "./upload-button";
+import { useFileDrop } from "./use-file-drop";
 import type { WorkspaceSource } from "./workspace";
 
 // The workspace brings the chat, the charts, the AI SDK and Zod. None of it is
 // needed on the first screen, so it loads once a dataset is picked (D-066).
-const Workspace = dynamic(() => import("./workspace").then((m) => m.Workspace), {
-  loading: () => (
-    <div aria-busy="true" aria-label="Loading" className="h-[360px] rounded-lg bg-surface motion-safe:animate-pulse" />
-  ),
-});
+const Workspace = dynamic(() => import("./workspace").then((m) => m.Workspace), { loading: Skeleton });
+
+function Skeleton() {
+  return <div aria-busy="true" aria-label="Loading" className="h-[360px] rounded-lg bg-surface motion-safe:animate-pulse" />;
+}
 
 // Each upload gets its own n, so loading a file again starts afresh.
 type Upload = { n: number; name: string; csv: ParsedCsv };
 type Source = { kind: "bundled"; id: DatasetId } | { kind: "upload"; upload: Upload };
 
+function isDatasetId(id: string | null): id is DatasetId {
+  return id !== null && Object.hasOwn(datasets, id);
+}
+
+// The URL that reopens a source: a demo can be, an upload can't (D-067).
+function urlFor(source: Source) {
+  return source.kind === "bundled" ? `/app?dataset=${source.id}` : "/app";
+}
+
+// Reading the search params needs a Suspense boundary, or /app can't be
+// prerendered. The fallback is the header and a skeleton, so a deep link
+// never flashes the chooser (D-067).
 export function Studio() {
-  // Null until the user picks a dataset on the first screen (D-045).
-  const [source, setSource] = useState<Source | null>(null);
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-4 md:px-6">
+          <AppHeader />
+          <Skeleton />
+        </main>
+      }
+    >
+      <StudioContent />
+    </Suspense>
+  );
+}
+
+function StudioContent() {
+  const router = useRouter();
+  const requested = useSearchParams().get("dataset");
+  // Null until the user picks a dataset on the first screen (D-045). A file
+  // handed over by the landing page, or a demo in the URL, opens straight away.
+  const [source, setSource] = useState<Source | null>(() => {
+    const handoff = peekHandoff();
+    if (handoff) return { kind: "upload", upload: { n: 0, ...handoff } };
+    return isDatasetId(requested) ? { kind: "bundled", id: requested } : null;
+  });
   // Bumped to remount the workspace: to fetch a bundled file again after it
   // failed to load, or to start a new chat on the same data.
   const [restarts, setRestarts] = useState(0);
@@ -38,8 +76,27 @@ export function Studio() {
   // A dataset waiting for the user to confirm that the conversation can go.
   const [pending, setPending] = useState<Source | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const uploads = useRef(0);
+  const home = useRef<HTMLAnchorElement>(null);
+  const stayed = useRef(false);
+  const { dragging, handlers } = useFileDrop((file) => void loadFile(file), setError);
+
+  // The hand-off is read once.
+  useEffect(clearHandoff, []);
+
+  // An unknown demo id falls back to the chooser quietly.
+  useEffect(() => {
+    if (requested !== null && !isDatasetId(requested)) router.replace("/app");
+  }, [requested, router]);
+
+  // After Stay, focus goes back to the wordmark. This runs after the dialog's
+  // own effect has closed it, which would otherwise put focus elsewhere.
+  useEffect(() => {
+    if (leaving || !stayed.current) return;
+    stayed.current = false;
+    home.current?.focus();
+  }, [leaving]);
 
   // An upload is inferred here, so the date notice can see it; switching the
   // date order re-infers it without remounting the workspace (D-042).
@@ -59,6 +116,8 @@ export function Studio() {
 
   function open(next: Source) {
     setSource(next);
+    // Replace, so Back leaves the app rather than stepping through datasets.
+    router.replace(urlFor(next));
     setDateOrder("day-first");
     setConversation(false);
     setPending(null);
@@ -79,35 +138,21 @@ export function Studio() {
     else setError(result.message);
   }
 
-  function hasFiles(event: DragEvent) {
-    return event.dataTransfer.types.includes("Files");
-  }
-
   return (
     <main
       // From tablet width the page fits the screen and each pane scrolls; on a
       // phone the page scrolls, with room at the bottom for the pinned input (D-055).
       className={`mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-4 md:px-6 ${source ? "pb-28 md:h-dvh md:pb-4" : ""}`}
-      onDragOver={(event) => {
-        if (!hasFiles(event)) return;
-        event.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={(event) => {
-        // Leaving for a child element isn't leaving the page.
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
-      }}
-      onDrop={(event) => {
-        if (!hasFiles(event)) return;
-        event.preventDefault();
-        setDragging(false);
-        const files = event.dataTransfer.files;
-        const file = files[0];
-        if (files.length !== 1 || !file) setError("Drop one file at a time.");
-        else void loadFile(file);
-      }}
+      {...handlers}
     >
       <AppHeader
+        homeRef={home}
+        // Nothing is saved, so leaving a conversation asks first. Back isn't intercepted (D-067).
+        onHomeNavigate={(event) => {
+          if (!conversation) return;
+          event.preventDefault();
+          setLeaving(true);
+        }}
         controls={
           source && (
             <div className="flex flex-wrap items-center gap-3">
@@ -167,15 +212,19 @@ export function Studio() {
         onConfirm={() => pending && open(pending)}
         onCancel={() => setPending(null)}
       />
-      {dragging && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed inset-4 z-10 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-foreground bg-background/90 p-6 text-center"
-        >
-          <p className="text-lg font-medium">Drop a CSV file to load it</p>
-          <p className="max-w-md text-sm text-muted">{PRIVACY_NOTE}</p>
-        </div>
-      )}
+      <ConfirmDialog
+        open={leaving}
+        title="Leave and lose this chat?"
+        message="Nothing is saved, so the chat and its charts will be gone."
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        onConfirm={() => router.push("/")}
+        onCancel={() => {
+          stayed.current = true;
+          setLeaving(false);
+        }}
+      />
+      {dragging && <DropOverlay />}
     </main>
   );
 }

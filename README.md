@@ -95,7 +95,13 @@ pnpm dev        # http://localhost:3000
 | `CHARTSEER_MODEL` | No | Defaults to `claude-sonnet-5`. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | In production | The daily limits. Vercel's integration names (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) work too. Without them, development counts in memory, and production keeps the chat off. |
 
-Put them in `.env.local`. Everything except the chat works without them: the first screen, uploads, the chart gallery at `/dev/gallery`, and the tests.
+Put them in `.env.local`. Everything except the chat works without them: the landing page, the app's first screen, uploads, the chart gallery at `/dev/gallery`, and the tests.
+
+| Route | What it shows |
+|---|---|
+| `/` | The landing page. |
+| `/app` | The app: choose a demo dataset or upload a CSV. |
+| `/app?dataset=bikes`, `/app?dataset=gelato` | The app with that demo already loaded. |
 
 ### Commands
 

@@ -1,16 +1,26 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 type ConfirmDialogProps = {
   open: boolean;
   title: string;
   message: string;
   confirmLabel: string;
+  cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
 // A modal confirmation on the native <dialog>, which handles focus and Escape.
-export function ConfirmDialog({ open, title, message, confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel = "Cancel",
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -23,14 +33,14 @@ export function ConfirmDialog({ open, title, message, confirmLabel, onConfirm, o
   return (
     <dialog
       ref={ref}
-      aria-labelledby="confirm-title"
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
       }}
       className="m-auto max-w-sm rounded-lg border border-border bg-background p-5 text-foreground backdrop:bg-black/40"
     >
-      <h2 id="confirm-title" className="text-base font-semibold">
+      <h2 id={titleId} className="text-base font-semibold">
         {title}
       </h2>
       <p className="mt-2 text-sm text-muted">{message}</p>
@@ -40,7 +50,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, onConfirm, o
           onClick={onCancel}
           className="rounded-md border border-border px-3 py-1.5"
         >
-          Cancel
+          {cancelLabel}
         </button>
         <button
           type="button"

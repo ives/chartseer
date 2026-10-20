@@ -1,8 +1,36 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axe from "axe-core";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearHandoff, handOff, peekHandoff } from "./handoff";
 import { Studio } from "./studio";
+
+// The App Router isn't mounted in tests: the URL and the router are stand-ins.
+const navigation = vi.hoisted(() => ({ search: "", replace: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: navigation.replace, push: navigation.push }),
+  useSearchParams: () => new URLSearchParams(navigation.search),
+}));
+// Next's Link needs the mounted router to call onNavigate. This one keeps its
+// contract: onNavigate runs on a click and can cancel; otherwise it pushes.
+vi.mock("next/link", () => ({
+  default: ({ href, onNavigate, children, ...rest }: LinkStubProps) => (
+    <a
+      href={href}
+      {...rest}
+      onClick={(event) => {
+        event.preventDefault();
+        let prevented = false;
+        onNavigate?.({ preventDefault: () => (prevented = true) });
+        if (!prevented) navigation.push(href);
+      }}
+    >
+      {children}
+    </a>
+  ),
+}));
+type LinkStubProps = ComponentProps<"a"> & { href: string; onNavigate?: (event: { preventDefault: () => void }) => void };
 
 function csvFile(text: string, name = "sales.csv") {
   return new File([text], name, { type: "text/csv" });
@@ -31,6 +59,9 @@ describe("Studio uploads", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    navigation.search = "";
+    navigation.replace.mockClear();
+    navigation.push.mockClear();
   });
 
   it("has the wordmark as its only top-level heading", () => {
@@ -146,5 +177,125 @@ describe("Studio uploads", () => {
     render(<Studio />);
     fireEvent.drop(screen.getByRole("main"), { dataTransfer: { types: ["Files"], files: [csvFile("a,b\n1,2\n")] } });
     expect(await screen.findByDisplayValue("sales.csv")).toBeTruthy();
+  });
+});
+
+describe("Studio routes", () => {
+  beforeEach(() => {
+    Element.prototype.scrollTo = () => {};
+    // jsdom has no showModal; this is enough for the dialog to open and close.
+    HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.open = false;
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("date,shop,scoops\n2025-06-01,Brixton,10\n")),
+    );
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    clearHandoff();
+    navigation.search = "";
+    navigation.replace.mockClear();
+    navigation.push.mockClear();
+  });
+
+  function wordmark() {
+    return screen.getByRole("link", { name: "Chartseer" });
+  }
+
+  async function startConversation() {
+    fireEvent.click(await screen.findByRole("button", { name: "Daily revenue by shop in 2025" }));
+    await screen.findByText("Daily revenue by shop in 2025", { selector: ":not(button)" });
+  }
+
+  it("shows the chooser with no dataset in the URL", () => {
+    render(<Studio />);
+    expect(screen.getByRole("heading", { name: "Choose some data to chart" })).toBeTruthy();
+    expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["bikes", "Journeys by hour of day, weekdays against weekends"],
+    ["gelato", "Daily revenue by shop in 2025"],
+  ])("opens ?dataset=%s straight into the workspace", async (id, starter) => {
+    navigation.search = `?dataset=${id}`;
+    render(<Studio />);
+    expect(((await screen.findByLabelText("Dataset")) as HTMLSelectElement).value).toBe(id);
+    expect(await screen.findByRole("button", { name: starter })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Choose some data to chart" })).toBeNull();
+    expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the chooser on an unknown dataset, and tidies the URL", () => {
+    navigation.search = "?dataset=nonsense";
+    render(<Studio />);
+    expect(screen.getByRole("heading", { name: "Choose some data to chart" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(navigation.replace).toHaveBeenCalledWith("/app");
+  });
+
+  it("keeps the URL in step with the dataset, replacing rather than pushing", async () => {
+    render(<Studio />);
+    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/app?dataset=gelato");
+    fireEvent.change(await screen.findByLabelText("Dataset"), { target: { value: "bikes" } });
+    expect(navigation.replace).toHaveBeenLastCalledWith("/app?dataset=bikes");
+    fireEvent.change(screen.getByLabelText("Upload Own CSV"), { target: { files: [csvFile("a,b\n1,2\n")] } });
+    await screen.findByDisplayValue("sales.csv");
+    expect(navigation.replace).toHaveBeenLastCalledWith("/app");
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("changes the URL only once a mid-conversation switch is confirmed", async () => {
+    navigation.search = "?dataset=gelato";
+    render(<Studio />);
+    await startConversation();
+    fireEvent.change(screen.getByLabelText("Dataset"), { target: { value: "bikes" } });
+    expect(navigation.replace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Start afresh" }));
+    expect(navigation.replace).toHaveBeenCalledWith("/app?dataset=bikes");
+  });
+
+  it("opens a file handed over by the landing page, and empties the hand-off", async () => {
+    handOff({ name: "takings.csv", csv: { columns: ["stall", "takings"], rows: [{ stall: "Cheese", takings: "12" }] } });
+    render(<Studio />);
+    expect(((await screen.findByLabelText("Dataset")) as HTMLSelectElement).value).toBe("upload");
+    expect(screen.getByDisplayValue("takings.csv")).toBeTruthy();
+    expect(peekHandoff()).toBeNull();
+  });
+
+  it("links the wordmark home, without asking when there is no conversation", () => {
+    render(<Studio />);
+    expect(wordmark().getAttribute("href")).toBe("/");
+    fireEvent.click(wordmark());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(navigation.push).toHaveBeenCalledWith("/");
+  });
+
+  it("asks before leaving a conversation: Stay keeps everything", async () => {
+    navigation.search = "?dataset=gelato";
+    render(<Studio />);
+    await startConversation();
+    fireEvent.click(wordmark());
+    const dialog = screen.getByRole("dialog", { name: "Leave and lose this chat?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Stay" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(wordmark());
+    expect(screen.getByText("Daily revenue by shop in 2025", { selector: ":not(button)" })).toBeTruthy();
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("asks before leaving a conversation: Leave goes home", async () => {
+    navigation.search = "?dataset=gelato";
+    render(<Studio />);
+    await startConversation();
+    fireEvent.click(wordmark());
+    fireEvent.click(screen.getByRole("button", { name: "Leave" }));
+    expect(navigation.push).toHaveBeenCalledWith("/");
   });
 });
