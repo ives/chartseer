@@ -14,7 +14,8 @@ import { DatasetChooser } from "./dataset-chooser";
 import { type DatasetId, DatasetPicker } from "./dataset-picker";
 import { DropOverlay } from "./drop-overlay";
 import { clearHandoff, peekHandoff } from "./handoff";
-import { PRIVACY_NOTE, UploadButton } from "./upload-button";
+import { PrivacyNote } from "./privacy-note";
+import { UploadButton } from "./upload-button";
 import { useFileDrop } from "./use-file-drop";
 import type { WorkspaceSource } from "./workspace";
 
@@ -23,8 +24,11 @@ import type { WorkspaceSource } from "./workspace";
 const Workspace = dynamic(() => import("./workspace").then((m) => m.Workspace), { loading: Skeleton });
 
 function Skeleton() {
-  return <div aria-busy="true" aria-label="Loading" className="h-[360px] rounded-lg bg-surface motion-safe:animate-pulse" />;
+  return <div aria-busy="true" aria-label="Loading" className="h-[360px] rounded-[20px] bg-surface-track motion-safe:animate-pulse" />;
 }
+
+// The page: the header across the full width, then the content.
+const PAGE = "flex min-h-full w-full flex-1 flex-col bg-page";
 
 // Each upload gets its own n, so loading a file again starts afresh.
 type Upload = { n: number; name: string; csv: ParsedCsv };
@@ -46,9 +50,11 @@ export function Studio() {
   return (
     <Suspense
       fallback={
-        <main className="mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-4 md:px-6">
+        <main className={PAGE}>
           <AppHeader />
-          <Skeleton />
+          <div className="p-3 md:px-6 md:pt-4 md:pb-6">
+            <Skeleton />
+          </div>
         </main>
       }
     >
@@ -113,6 +119,12 @@ function StudioContent() {
     return { kind: "upload", meta, dataset, starters: starterPrompts(dataset.summary) };
   }, [source, dateOrder]);
   const ambiguous = workspace?.kind === "upload" && workspace.dataset.ambiguousDates.length > 0;
+  // The switcher's second line: the demo's size and period, or the upload's rows.
+  const summary = !workspace
+    ? ""
+    : workspace.kind === "bundled"
+      ? `${workspace.meta.scale} · ${workspace.meta.period}`
+      : `${workspace.dataset.rows.length.toLocaleString("en-GB")} rows`;
 
   function open(next: Source) {
     setSource(next);
@@ -142,7 +154,7 @@ function StudioContent() {
     <main
       // From tablet width the page fits the screen and each pane scrolls; on a
       // phone the page scrolls, with room at the bottom for the pinned input (D-055).
-      className={`mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-4 md:px-6 ${source ? "pb-28 md:h-dvh md:pb-4" : ""}`}
+      className={`${PAGE} ${source ? "pb-28 md:h-dvh md:pb-0" : ""}`}
       {...handlers}
     >
       <AppHeader
@@ -155,54 +167,59 @@ function StudioContent() {
         }}
         controls={
           source && (
-            <div className="flex flex-wrap items-center gap-3">
+            <>
               <DatasetPicker
                 value={source.kind === "bundled" ? source.id : "upload"}
                 upload={source.kind === "upload" ? source.upload.name : null}
+                summary={summary}
                 onChange={(id) => choose({ kind: "bundled", id })}
               />
               {ambiguous && (
-                <p className="text-sm text-muted">
+                <p className="text-sm text-secondary">
                   Dates read as {dateOrder === "day-first" ? "day/month" : "month/day"} ·{" "}
                   <button
                     type="button"
                     onClick={() => setDateOrder(dateOrder === "day-first" ? "month-first" : "day-first")}
-                    className="text-accent underline underline-offset-2"
+                    className="min-h-11 text-accent underline underline-offset-2 md:min-h-0"
                   >
                     switch
                   </button>
                 </p>
               )}
-              <UploadButton onFile={(file) => void loadFile(file)} />
-            </div>
+            </>
           )
         }
+        note={source && <PrivacyNote />}
+        actions={source && <UploadButton label="Upload CSV" compact onFile={(file) => void loadFile(file)} />}
       >
-        {source && <p className="text-xs text-muted sm:self-end">{PRIVACY_NOTE}</p>}
         {error && (
-          <p role="alert" className="text-sm text-danger sm:self-end">
+          <p role="alert" className="text-sm text-danger md:self-end">
             {error}
           </p>
         )}
       </AppHeader>
       {source && workspace ? (
         // Remounting on a new dataset clears the data, the chat and the chart history together.
-        <Workspace
-          key={`${source.kind === "bundled" ? source.id : `upload-${source.upload.n}`}-${restarts}`}
-          source={workspace}
-          onConversationChange={setConversation}
-          onRetryLoad={() => {
-            setNewChat(false);
-            setRestarts((n) => n + 1);
-          }}
-          onNewChat={() => {
-            setNewChat(true);
-            setRestarts((n) => n + 1);
-          }}
-          newChat={newChat}
-        />
+        <div className="flex min-h-0 flex-1 flex-col p-3 md:px-6 md:pt-4 md:pb-6">
+          <Workspace
+            key={`${source.kind === "bundled" ? source.id : `upload-${source.upload.n}`}-${restarts}`}
+            source={workspace}
+            onConversationChange={setConversation}
+            onRetryLoad={() => {
+              setNewChat(false);
+              setRestarts((n) => n + 1);
+            }}
+            onNewChat={() => {
+              setNewChat(true);
+              setRestarts((n) => n + 1);
+            }}
+            newChat={newChat}
+          />
+        </div>
       ) : (
-        <DatasetChooser onPick={(id) => choose({ kind: "bundled", id })} onFile={(file) => void loadFile(file)} />
+        <div className="mx-auto w-full max-w-7xl px-4 md:px-6">
+          <DatasetChooser onPick={(id) => choose({ kind: "bundled", id })} onFile={(file) => void loadFile(file)} />
+        </div>
       )}
       <ConfirmDialog
         open={pending !== null}

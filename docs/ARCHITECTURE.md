@@ -160,15 +160,16 @@ All errors are collected, not just the first. A check that needs a missing colum
 
 - Every tool call returns a **complete** spec, never a patch. The current spec is sent with each request so the model can revise it.
 - The browser keeps the list of specs as history, which gives undo for free.
-- **Undo and redo** (D-044) step through that history, with buttons in the chart area or Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z outside text fields. The chart on screen is always the current spec sent with the next request, and the user's next message starts with a short event naming it ("↩ Back to: …"), so a refinement after an undo builds on what the user sees. A new chart after an undo discards the redo steps.
+- **Undo and redo** (D-044) step through that history, with buttons in the chart toolbar or Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z outside text fields. The chart on screen is always the current spec sent with the next request, and the user's next message starts with a short event naming it ("↩ Back to: …"), so a refinement after an undo builds on what the user sees. A new chart after an undo discards the redo steps.
+- **Chart chips** (D-069): each reply that drew a chart ends with a chip, "Chart N · {title}", N being its place in order of drawing. The chip of the chart on screen is marked `aria-current`. Clicking a chip shows that chart, exactly as the matching number of undos or redos would, so the next message still says where the user went back to; on a phone the chart scrolls into view. A chart discarded by a new chart after an undo keeps its number but can't be shown. A line above the chart title gives the same number: "Chart N of M · Bar chart".
 - **Routes** (D-067, D-068): `/` is the landing page; the app is at `/app`. `/app?dataset=<id>` opens a demo straight into the workspace, and the URL follows the dataset with `replace`, so Back leaves the app in one step. A file picked on the landing page is read there and handed to the app in memory. The wordmark links home, asking first if a conversation would be lost.
-- **First screen and starters** (D-045): `/app` opens on a choice of demo dataset or upload. Before the first chart, three or four starter prompts appear as chips that send straight into the chat: hand-picked for the demo datasets, built from the column summary for uploads.
+- **First screen and starters** (D-045): `/app` opens on a choice of demo dataset or upload. Once one is loaded, the header's dataset switcher shows its full name and a summary line over a native `<select>`, and "Your file stays on this device" opens to the full privacy note (D-069). Before the first chart, three or four starter prompts appear as chips that send straight into the chat: hand-picked for the demo datasets, built from the column summary for uploads.
 - **Offline and errors** (D-047): offline, the chat says so and holds sending; a failed request says whether the device is offline or the server is out of reach, with Try again. A demo file that fails to load has its own Try again.
 - Text streams as it arrives. While a tool call is in progress, the chart area shows a skeleton. The chart renders only once the spec is complete and validated.
 
 ## 9. Rendering
 
-- A shared **chart frame** handles margins, axes, legend, title and responsive sizing.
+- A shared **chart frame** handles margins, axes, legend, title and responsive sizing. The page chooses which view it shows (plot, table or spec) and can add actions under the plot, through `ChartChromeContext`; the renderers don't know about either (D-069).
 - One renderer per chart type, selected by a switch on `spec.type` with an exhaustive `never` check.
 - React renders the SVG elements; D3 supplies scales, shape generators and ticks.
 - Colours are CSS variables, so light and dark themes need no JavaScript. Every light-mode series colour has at least 3:1 contrast; dark mode puts a subtly raised panel behind each chart (D-050). `/dev/gallery` can force either theme (D-049).
@@ -178,18 +179,18 @@ All errors are collected, not just the first. A check that needs a missing colum
 ## 10. Accessibility
 
 - `describeChart(spec, data)` in `lib/data/describe.ts` produces a deterministic text summary of each chart: what is plotted, the range, and where the largest value is. It is the SVG's accessible description (`aria-describedby`). It lives in `lib/data`, not `lib/spec`, because it reads the prepared `ChartData` (D-029).
-- Every chart has a "View as table" toggle, which swaps the plot for an HTML table of the same `ChartData`: a caption, column and row headers, missing values read as "no data", and partial buckets marked. The title, notes and attribution stay.
+- Every chart has a table view, chosen with the Chart | Table | Spec control at the top of the chart card (`aria-pressed` buttons in a group labelled "View", D-069), which swaps the plot for an HTML table of the same `ChartData`: a caption, column and row headers, missing values read as "no data", and partial buckets marked. The title, notes and attribution stay.
 - Colour is never the only way to tell series apart; the legend and tooltips carry labels. Tooltips are for pointers only and hidden from assistive technology; the table view has every value they show (D-052).
 - Everything is reachable by keyboard, in the order it appears on screen. One global `:focus-visible` rule draws the focus ring in the accent colour on every control (D-056).
 - All text meets WCAG AA contrast in both themes. In the app, the page has one `h1`, the wordmark; chart titles and screen titles are `h2`. On the landing page, the `h1` is the hero heading, then section `h2`s and card `h3`s (D-068).
 - A newly drawn chart is announced by the chat's status line, and an undo or redo by the chart area's, so each change is read out once.
 - axe runs in the test suite (without colour contrast, which jsdom can't measure) and by hand in the browser on every screen, in both themes (D-057).
-- Every chart has a "View spec" toggle beside "View as table": the spec as read-only JSON in a focusable, scrollable region, with a Copy button whose result is announced (D-058).
-- Layout: chart and chat side by side from 768 px; below that the page scrolls, chart first, with the chat input pinned to the bottom of the screen (D-055).
+- Every chart has a spec view, the third choice of the same control: the spec as read-only JSON in a focusable, scrollable region, with a Copy button whose result is announced (D-058).
+- Layout: chart and chat side by side from 768 px, in two cards, the chat 340–520 px wide; below that the page scrolls, chart first, with the chat input pinned to the bottom of the screen (D-055, D-069). On phones every control is at least 44 px, and the input is 16 px so iOS doesn't zoom.
 
 ## 11. Scope fence
 
-**In v1:** CSV upload (≤ 5 MB) plus two bundled demo datasets; column inference; four chart types (line, area, bar, scatter); chat-based creation and refinement; streaming; undo via spec history; dark mode; accessibility as above; a read-only "view spec" toggle (D-058); SVG and PNG download (D-059); rate-limited public demo.
+**In v1:** CSV upload (≤ 5 MB) plus two bundled demo datasets; column inference; four chart types (line, area, bar, scatter); chat-based creation and refinement; streaming; undo via spec history; dark mode; accessibility as above; a read-only spec view (D-058); SVG and PNG download (D-059); rate-limited public demo.
 
 **Not in v1:** user accounts; a database (Upstash Redis holds only daily message counts under hashed addresses, which expire at the end of the day; D-061); saved or shared projects; Excel files; multiple datasets or joins; collaboration; model-chosen styling; any model-generated code.
 

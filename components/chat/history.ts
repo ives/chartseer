@@ -51,6 +51,14 @@ export function redo(steps: ChartSteps): ChartSteps {
   return canRedo(steps) ? { ...steps, position: steps.position + 1, announce: true } : steps;
 }
 
+// Shows the chart at this index of the chart history, as the matching number
+// of undos or redos would. A chart dropped from the steps can't be shown.
+export function goTo(steps: ChartSteps, index: number): ChartSteps {
+  const position = steps.stack.indexOf(index);
+  if (position === -1 || position === steps.position) return steps;
+  return { ...steps, position, announce: true };
+}
+
 // The shown chart's index in the chart history, if there is one.
 export function currentIndex(steps: ChartSteps): number | undefined {
   return steps.stack[steps.position];

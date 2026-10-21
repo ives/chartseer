@@ -38,24 +38,24 @@ export function ConfirmDialog({
         event.preventDefault();
         onCancel();
       }}
-      className="m-auto max-w-sm rounded-lg border border-border bg-background p-5 text-foreground backdrop:bg-black/40"
+      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-[20px] border border-border-card bg-card p-6 text-foreground shadow-lifted backdrop:bg-black/40"
     >
-      <h2 id={titleId} className="text-base font-semibold">
+      <h2 id={titleId} className="font-serif text-xl font-semibold tracking-[-0.01em]">
         {title}
       </h2>
-      <p className="mt-2 text-sm text-muted">{message}</p>
-      <div className="mt-4 flex justify-end gap-2 text-sm">
+      <p className="mt-2 text-sm leading-relaxed text-secondary">{message}</p>
+      <div className="mt-6 flex justify-end gap-2 text-sm font-medium">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-border px-3 py-1.5"
+          className="min-h-11 rounded-xl border border-border bg-card px-4 hover:border-border-strong"
         >
           {cancelLabel}
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className="rounded-md bg-accent px-3 py-1.5 font-medium text-accent-foreground"
+          className="min-h-11 rounded-xl bg-accent px-4 text-accent-foreground"
         >
           {confirmLabel}
         </button>

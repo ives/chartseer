@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import type { ComponentProps } from "react";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { APICallError } from "ai";
-import { MAX_CONVERSATION_MESSAGES, gelatoSummary } from "@/lib/spec";
+import { type ChartSpec, MAX_CONVERSATION_MESSAGES, examples, gelatoSummary } from "@/lib/spec";
+import type { ChartseerMessage } from "./messages";
 import { ChatPanel } from "./chat-panel";
 
 const props: ComponentProps<typeof ChatPanel> = {
@@ -15,6 +16,8 @@ const props: ComponentProps<typeof ChatPanel> = {
   onSend: () => {},
   onRetry: () => {},
   onNewChat: () => {},
+  links: { shown: undefined, reachable: [], canShow: true, onShow: () => {} },
+  privacyNote: "Your file stays on your device. Column names and a few sample rows are sent to the AI.",
 };
 
 function goOffline(offline: boolean) {
@@ -93,5 +96,67 @@ describe("ChatPanel limits", () => {
     expect(document.activeElement).toBe(document.body);
     rerender(<ChatPanel {...props} focusOnMount />);
     expect(document.activeElement).toBe(screen.getByLabelText("Describe a chart"));
+  });
+});
+
+describe("ChatPanel chart chips", () => {
+  beforeEach(() => {
+    Element.prototype.scrollTo = () => {};
+  });
+  afterEach(cleanup);
+
+  const specs = examples.filter((e) => e.dataset === gelatoSummary).slice(0, 3).map((e) => e.spec);
+  // A request and a reply that drew each spec, in order.
+  const messages: ChartseerMessage[] = specs.flatMap((spec: ChartSpec, i) => [
+    { id: `u${i}`, role: "user" as const, parts: [{ type: "text" as const, text: `Request ${i}` }] },
+    {
+      id: `a${i}`,
+      role: "assistant" as const,
+      parts: [
+        { type: "text" as const, text: `Reply ${i}` },
+        {
+          type: "tool-renderChart" as const,
+          toolCallId: `c${i}`,
+          state: "output-available" as const,
+          input: { spec },
+          output: { ok: true as const, spec },
+        },
+      ],
+    },
+  ]);
+
+  it("numbers charts in order of drawing and marks the one on screen", () => {
+    render(<ChatPanel {...props} messages={messages} links={{ ...props.links, shown: 2, reachable: [0, 1, 2] }} />);
+    const chips = screen.getAllByRole("button", { name: /^Chart \d ·/ });
+    expect(chips.map((c) => c.textContent)).toEqual(specs.map((spec, i) => `Chart ${i + 1} · ${spec.title}`));
+    expect(chips.map((c) => c.getAttribute("aria-current"))).toEqual([null, null, "true"]);
+    expect(screen.queryByText(/^Drew:/)).toBeNull();
+  });
+
+  it("keeps a replaced chart's number, but not as a control", () => {
+    // Chart 2 was undone, then chart 3 replaced it.
+    render(<ChatPanel {...props} messages={messages} links={{ ...props.links, shown: 2, reachable: [0, 2] }} />);
+    const chips = screen.getAllByRole("button", { name: /^Chart \d ·/ });
+    expect(chips.map((c) => c.textContent?.slice(0, 7))).toEqual(["Chart 1", "Chart 3"]);
+    const replaced = screen.getByText(`Chart 2 ·`).parentElement?.parentElement;
+    expect(replaced?.tagName).toBe("SPAN");
+    expect(replaced?.getAttribute("aria-current")).toBeNull();
+    expect(within(replaced as HTMLElement).getByText("(replaced)")).toBeTruthy();
+  });
+
+  it("shows a chart when its chip is clicked, but not during a request", () => {
+    const onShow = vi.fn();
+    const links = { shown: 2, reachable: [0, 1, 2], canShow: true, onShow };
+    const { rerender } = render(<ChatPanel {...props} messages={messages} links={links} />);
+    fireEvent.click(screen.getByRole("button", { name: `Chart 1 · ${specs[0]?.title}` }));
+    expect(onShow).toHaveBeenCalledWith(0);
+
+    rerender(<ChatPanel {...props} messages={messages} links={{ ...links, canShow: false }} />);
+    expect((screen.getByRole("button", { name: `Chart 1 · ${specs[0]?.title}` }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("says what is sent to the AI before the first message", () => {
+    render(<ChatPanel {...props} />);
+    expect(screen.getByText(props.privacyNote)).toBeTruthy();
   });
 });

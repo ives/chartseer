@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { datasets } from "@/lib/data/datasets";
@@ -17,7 +17,7 @@ const parsed = parseSpec(
 if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
 const chart = { spec: parsed.spec, data: prepareChartData(rows, summary, parsed.spec), dataset: datasets.gelato, empty: null };
 const ask = { starters: ["Daily revenue by shop in 2025"], canAsk: true, onAsk: () => {} };
-const steps = { canUndo: false, canRedo: false, announcement: "", onUndo: () => {}, onRedo: () => {} };
+const steps = { canUndo: false, canRedo: false, announcement: "", onUndo: () => {}, onRedo: () => {}, shown: 1, drawn: 1 };
 
 // axe's rule ids that fail in this subtree. jsdom lays nothing out, so colour
 // contrast is checked in the browser instead (D-057); a lone component has no
@@ -134,8 +134,13 @@ describe("ChartArea", () => {
     expect(screen.queryByRole("button", { name: /^Download/ })).toBeNull();
 
     rerender(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
-    expect(screen.getByRole("button", { name: "Download SVG" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Download PNG" })).toBeTruthy();
+    // Two groups: a joined pair in the toolbar, and a pair under the chart on a phone. CSS shows one.
+    const groups = screen.getAllByRole("group", { name: "Download" });
+    expect(groups).toHaveLength(2);
+    for (const group of groups) {
+      expect(within(group).getByRole("button", { name: "Download SVG" })).toBeTruthy();
+      expect(within(group).getByRole("button", { name: "Download PNG" })).toBeTruthy();
+    }
 
     // Nothing to download when the chart has nothing to draw.
     const empty = { kind: "no-values", message: "Nothing to plot." } as const;
@@ -160,14 +165,60 @@ describe("ChartArea", () => {
 
     const drawn = render(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
     expect(await axeViolations(drawn.container)).toEqual([]);
-    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    fireEvent.click(screen.getByRole("button", { name: "Table" }));
     expect(await axeViolations(drawn.container)).toEqual([]);
-    fireEvent.click(screen.getByRole("button", { name: "View spec" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spec" }));
     expect(await axeViolations(drawn.container)).toEqual([]);
     cleanup();
 
     const empty = { kind: "filter", message: "No rows where shop is 'Brixtn'.", request: "Fix the filter." } as const;
     const nothing = render(<ChartArea pending={false} chart={{ ...chart, empty }} dataset={datasets.gelato} {...ask} steps={steps} />);
     expect(await axeViolations(nothing.container)).toEqual([]);
+  });
+
+  describe("the view switch", () => {
+    function pressed() {
+      const group = screen.getByRole("group", { name: "View" });
+      return within(group)
+        .getAllByRole("button")
+        .map((b) => `${b.textContent}:${b.getAttribute("aria-pressed")}`);
+    }
+
+    it("shows the chart, its table or its spec, one at a time", () => {
+      render(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={steps} />);
+      expect(pressed()).toEqual(["Chart:true", "Table:false", "Spec:false"]);
+      expect(screen.getByRole("img", { name: "Scoops by day" })).toBeTruthy();
+
+      fireEvent.click(screen.getByRole("button", { name: "Table" }));
+      expect(pressed()).toEqual(["Chart:false", "Table:true", "Spec:false"]);
+      expect(screen.getByRole("table", { name: "Scoops by day" })).toBeTruthy();
+      expect(screen.queryByRole("img")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Spec" }));
+      expect(pressed()).toEqual(["Chart:false", "Table:false", "Spec:true"]);
+      expect(screen.getByRole("region", { name: "Chart spec (JSON)" })).toBeTruthy();
+      expect(screen.queryByRole("table")).toBeNull();
+
+      // Pressing the current view again keeps it.
+      fireEvent.click(screen.getByRole("button", { name: "Spec" }));
+      expect(pressed()).toEqual(["Chart:false", "Table:false", "Spec:true"]);
+
+      fireEvent.click(screen.getByRole("button", { name: "Chart" }));
+      expect(pressed()).toEqual(["Chart:true", "Table:false", "Spec:false"]);
+      expect(screen.getByRole("img", { name: "Scoops by day" })).toBeTruthy();
+    });
+
+    it("isn't offered for a chart with nothing to draw", () => {
+      const empty = { kind: "no-values", message: "Nothing to plot." } as const;
+      render(<ChartArea pending={false} chart={{ ...chart, empty }} dataset={datasets.gelato} {...ask} steps={steps} />);
+      expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
+    });
+  });
+
+  it("says which chart of how many is shown, and its type, without reading it out", () => {
+    render(<ChartArea pending={false} chart={chart} dataset={datasets.gelato} {...ask} steps={{ ...steps, shown: 2, drawn: 3 }} />);
+    const line = screen.getByText("Chart 2 of 3 · Line chart");
+    expect(line.getAttribute("aria-hidden")).toBe("true");
   });
 });

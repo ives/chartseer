@@ -61,6 +61,64 @@ const paths = {
       <path d="M18 6L6 18" />
     </>
   ),
+  undo: (
+    <>
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="M15 14l5-5-5-5" />
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+    </>
+  ),
+  "chevron-down": <path d="M6 9l6 6 6-6" />,
+  // Chart types, for the workspace's chart chips.
+  "chart-line": <path d="M3 17l6-6 4 4 8-8" />,
+  "chart-area": (
+    <>
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M3 21h18" />
+    </>
+  ),
+  "chart-bar": (
+    <>
+      <path d="M6 20V10" />
+      <path d="M12 20V4" />
+      <path d="M18 20v-7" />
+    </>
+  ),
+  "chart-scatter": (
+    <>
+      <circle cx="6" cy="17" r="1.5" />
+      <circle cx="11" cy="11" r="1.5" />
+      <circle cx="17" cy="14" r="1.5" />
+      <circle cx="18" cy="6" r="1.5" />
+    </>
+  ),
+  // Dataset tiles in the workspace's switcher.
+  bike: (
+    <>
+      <circle cx="5.5" cy="16.5" r="3.5" />
+      <circle cx="18.5" cy="16.5" r="3.5" />
+      <path d="M5.5 16.5l4-8h6l3 8" />
+      <path d="M9.5 8.5L12 16.5h-1" />
+      <path d="M14 5.5h2.5" />
+    </>
+  ),
+  scoop: (
+    <>
+      <path d="M7 11a5 5 0 0 1 10 0" />
+      <path d="M6 11h12l-6 10z" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof paths;

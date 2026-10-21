@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { scaleBand, scaleLinear } from "d3-scale";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { datasets } from "@/lib/data/datasets";
+import { ChartChromeContext, type ChartViewMode } from "./chart-chrome";
 import { ChartExportContext, EXPORT_SIZE } from "./chart-export";
 import { type Axes, ChartFrame, type Inner, type LegendItem } from "./chart-frame";
 
@@ -79,43 +80,41 @@ describe("ChartFrame", () => {
     expect(screen.getByText(/1 in 30\.8 hires/)).toBeTruthy();
   });
 
-  it("swaps the legend and plot for the table, and back", () => {
-    renderFrame({
-      legend: [
-        { label: "Pistachio", color: "var(--chart-1)" },
-        { label: "Stracciatella", color: "var(--chart-2)" },
-      ],
-    });
-    const button = screen.getByRole("button", { name: "View as table" });
-    expect(button.getAttribute("aria-pressed")).toBe("false");
+  it("shows the view the page chose, keeping the attribution", () => {
+    const legend = [
+      { label: "Pistachio", color: "var(--chart-1)" },
+      { label: "Stracciatella", color: "var(--chart-2)" },
+    ];
+    const at = (view: ChartViewMode) => <ChartChromeContext value={{ view }}>{frame({ legend })}</ChartChromeContext>;
+    const { rerender } = render(at("chart"));
     expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("list", { name: "flavour" })).toBeTruthy();
 
-    fireEvent.click(button);
+    rerender(at("table"));
     expect(screen.getByRole("table", { name: "Scoops table" })).toBeTruthy();
+    // The table's headers name the series, so the legend goes.
     expect(screen.queryByRole("list")).toBeNull();
-    expect(button.getAttribute("aria-pressed")).toBe("true");
     // The attribution stays with the data, whichever way it is shown.
     expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
 
-    fireEvent.click(button);
+    rerender(at("spec"));
     expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.getByRole("list", { name: "flavour" })).toBeTruthy();
+    expect(screen.getByLabelText("Scoops spec")).toBeTruthy();
+    expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
   });
 
-  it("swaps the plot for the spec, and from the spec to the table", () => {
+  it("shows the plot, with no view controls of its own, when the page sets none", () => {
     renderFrame({});
-    const spec = screen.getByRole("button", { name: "View spec" });
-    const table = screen.getByRole("button", { name: "View as table" });
-    fireEvent.click(spec);
-    expect(screen.getByLabelText("Scoops spec")).toBeTruthy();
-    expect(spec.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByText(datasets.gelato.attribution)).toBeTruthy();
-
-    fireEvent.click(table);
+    expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByLabelText("Scoops spec")).toBeNull();
-    expect(screen.getByRole("table", { name: "Scoops table" })).toBeTruthy();
-    expect(spec.getAttribute("aria-pressed")).toBe("false");
-    expect(table.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  it("puts the page's actions above the attribution", () => {
+    render(<ChartChromeContext value={{ view: "chart", actions: <button type="button">Extra</button> }}>{frame({})}</ChartChromeContext>);
+    const extra = screen.getByRole("button", { name: "Extra" });
+    const attribution = screen.getByText(datasets.gelato.attribution);
+    expect(extra.compareDocumentPosition(attribution) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("draws one self-contained SVG of the export size when exporting", () => {

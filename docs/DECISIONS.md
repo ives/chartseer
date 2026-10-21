@@ -807,3 +807,48 @@ On mobile, LCP was 3.4 s and total blocking time 490 ms. The LCP element was the
 
   **`/` misses the target of 95.** Observed LCP (the hero heading) is 0.15 s; the simulated slow-4G figure is what costs the score. The placeholder scored 97–99 on the same machine. Without the italic at all, the page reached 92–94, so the remaining gap is the page's own weight, not the font. Measured along the way: the full Google italic, preloaded or not, 87–92. Best practices loses 4 only to the Web Analytics 404 off Vercel, as in D-067.
 - Checked in Chrome at 1440 px, 1024 px and 390 px against the design files, in both themes (`data-theme`), with axe in the browser: no violations, colour contrast included. Contrast checks axe couldn't settle are text over the hero's dot grid, the tick labels inside the product shot, and decorative check marks.
+
+## D-069 · 2026-10-21 · The workspace restyle
+
+**Context:** Task 03 restyles `/app` to `docs/design/workspace-desktop.html`, `workspace-mobile-chart.html` and `workspace-mobile-chat.html`, reusing D-068's tokens. Behaviour stays as it was, except for the changes below.
+**Decision:**
+- **Page and panels.** The page is on `--page`, full width (the `max-w-7xl` container stays for the first screen). The chart is in a `--card` card and the chat in a `--surface-chat` card, both with `--border-card` and a 20 px radius (18 px on phones). From 768 px they sit side by side, with the chat 340–520 px wide (D-055). In dark mode the card is the raised panel D-050 asks for: `--chart-panel` equals `--card`, so the figure lost its own padding.
+- **Tokens.** One new token, `--surface-chat`: `#f4f4f1` light, `#161615` dark. Everything else reuses D-068's names: the design's `--surface` is `--card`, `--text-subtle` is `--muted`, `--text-muted` is `--secondary`, `--border` is `--border-card` and `--border-control` is `--border`. Every text pair passes AA in both themes; the lowest are `--muted` on `--accent-soft` (4.7:1, light) and on `--surface-track` (6.7:1, dark).
+- **Header.** The dataset switcher is a styled box holding a tile icon, the full name, a summary line and a chevron, with the native `<select>` laid over it at zero opacity. Keyboard, screen readers and the switch confirmation (D-041) therefore work as before, and the focus ring is drawn on the box with `:has(:focus-visible)`. The summary is `scale · period` from the bundled meta ("About 25,000 rows · January to May 2026"), or the row count for an upload. On phones the switcher has a row of its own, and Upload CSV is a 44 px icon button whose input has `aria-label="Upload CSV"`. The first screen's button keeps "Upload Own CSV".
+- **Privacy note.** The header shows "Your file stays on this device" as a disclosure button (`aria-expanded`, `aria-controls`). It reveals the full sentence inline, under the switcher on phones. The full sentence also stays in the chat's empty state, the first screen and the drop overlay.
+- **Toolbar.** One row at the top of the chart card. On the left is a Chart | Table | Spec control: three `aria-pressed` buttons in `role="group"` labelled "View". It replaces the two toggles but keeps D-058's three-way state. On the right are Undo and Redo (text on desktop; 44 px icon buttons named by `aria-label` on phones), a divider, and SVG | PNG joined in `role="group"` labelled "Download". Their names stay "Download SVG" and "Download PNG", so the visible text is part of the name. On phones the downloads move under the plot as two half-width buttons. Both pairs are rendered and CSS shows one, which is why tests find two "Download" groups. The view control is hidden for a chart with nothing to draw, as the toggles were.
+- **Where the view lives.** The toolbar is page chrome in `components/studio`, but table and spec are swapped inside `ChartFrame`. So `ChartArea` holds the view and passes it, with the phone downloads as `actions` under the plot, through `ChartChromeContext` (`components/charts/chart-chrome.ts`), as `ChartExportContext` does for downloads. The renderers and `ChartView` are untouched. Without the context, the frame shows its plot: the dev gallery has no table/spec switch any more. The chosen view now persists across refinements; before, it reset only when the chart type changed, which was incidental.
+- **Above the title,** a mono line reads "Chart N of M · Bar chart": N is the shown chart's number in order of drawing and M is how many have been drawn, so it always agrees with the chips. It is `aria-hidden`: the undo/redo announcement keeps its own wording ("Showing chart 2 of 2: …", counted along the undo steps), and two different counts shouldn't both be read.
+- **Chart chips** replace "Drew: {title}". Each reply that drew a chart ends with a chip: a chart-type icon, "Chart N ·", then the title.
+  - N is the chart's place in the chart history and never changes once shown.
+  - The chip of the chart on screen uses the accent-soft style with `aria-current="true"`.
+  - A chart that undo-then-new-chart dropped keeps its number. It gets a dashed, muted style and sr-only "(replaced)", and it is a `<span>`, not a button, since nothing can reach it.
+  - Clicking a chip calls `goTo` in `components/chat/history.ts`. This moves the pointer to that chart's step, the same state the matching number of undos or redos gives. So it is announced, and the next message starts with "↩ Back to" (D-044). Chips are disabled while a request is in flight, as Undo and Redo are. On phones the chart card also scrolls into view, smoothly unless reduced motion is set.
+- **Messages and composer.**
+  - User messages are `--ink` bubbles with a 4 px bottom-right corner. Assistant messages are plain text.
+  - The composer is one 16 px-radius box with a soft shadow; focus shows as an accent border and a 3 px accent ring at 12%.
+  - The send button is a 44 px accent square named "Send", with the new placeholder "Describe a chart, or ask for a change…". The textarea is 16 px on phones, so iOS doesn't zoom.
+  - The phone's pinned bar is `--page` at 94% with a top border and an upward shadow.
+  - `maxLength`, the count, Enter, disabled-while-sending and "Start a new chat" are unchanged.
+- **Chart frame.** The title is still an `h2`, in Fraunces at 21 px on phones and 28 px on desktop. Legend swatches are rounded squares, with the series label first in `--muted`. The attribution footer is in `--muted` (it was the foreground at 70% opacity), 11 px on phones and 12 px on desktop, under a `--border-faint` rule. Axis titles, ticks and every mark are unchanged, as is the export layout.
+- **Undrawn states** use the same tokens and shapes:
+  - the skeleton, in `--surface-track` blocks;
+  - the empty chart in a dashed card, with "Ask Chartseer to fix it" as a 44 px secondary button;
+  - starters as pill buttons;
+  - chat errors and limit notices as small `--card` notices in `--danger`, and the offline notice in `--secondary`, all keeping `role="alert"`;
+  - the dialogs as 20 px cards with 44 px buttons;
+  - the drop overlay with a dashed accent border.
+- **First screen.** `/app` with no dataset shows the chooser, which has no design file of its own. Rather than copy the landing page, it reuses it: `DemoCards` (the two `DemoCard`s with their illustrations) and `OwnDataPanel` (the "Got your own data?" strip) were extracted from `components/landing/demos.tsx`, and the landing page renders the same components. In the app, a card's "Open demo" is a button calling `onOpen`, not the landing page's link. That keeps the pick going through Studio's `choose`, which replaces the URL and asks before dropping a conversation (D-041, D-067); a link would push history and wouldn't update Studio's state. The card also shows the full attribution and the sample note instead of the short credit, since they must be shown wherever the dataset is displayed (D-045). The strip holds the app's own `UploadButton`, in a `primary` accent style, with the privacy note under it.
+- **Icons.** The workspace reuses `components/landing/icon.tsx`, which gained undo, redo, chevron, the four chart types, bike, scoop and file. It has no imports, and the landing page's fence is about what it imports, not what imports it.
+**Consequences:**
+- **Bundle sizes:**
+
+  | | Before | After | Change |
+  |---|---|---|---|
+  | Workspace chunk (D-066), raw | 224,054 B | 230,773 B | +6.7 KB |
+  | Workspace chunk, gzipped | 60,193 B | 62,477 B | +2.3 KB |
+  | `/app` first-load JavaScript, gzipped, summed over the scripts in the prerendered HTML | 188,605 B | 193,586 B | +5.0 KB |
+
+  The `/app` first-load grew because the header's switcher, disclosure and icons are on the first screen (+1.8 KB), and so are the demo cards' illustrations and their data (+3.2 KB). No dependencies were added.
+- The first Studio test to open the workspace now waits up to 5 s for the lazy chunk, which imports cold in just over the 1 s default.
+- Checked in Chrome at 1440 px and at 390 px (in a 390 × 844 frame, as the window couldn't be narrowed), against the three design files, in both themes. Axe found no violations, colour contrast included, in all three views on phones, and on desktop with the disclosure open. Every phone control is at least 44 px; the view buttons were raised from the design's 38 px to meet that. The phone composer keeps two rows rather than the design's one line, so the placeholder isn't clipped.

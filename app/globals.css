@@ -61,6 +61,8 @@
      --secondary, --text-subtle → --muted, --border → --border-card. */
   --page: #fbfbf9;
   --card: #ffffff;
+  /* The workspace's chat panel (task 03). */
+  --surface-chat: #f4f4f1;
   --surface-track: #f3f2ee;
   --border-card: #e8e7e1;
   --border-faint: #f0efea;
@@ -105,6 +107,7 @@
   --color-focus: var(--focus);
   --color-page: var(--page);
   --color-card: var(--card);
+  --color-surface-chat: var(--surface-chat);
   --color-surface-track: var(--surface-track);
   --color-border-card: var(--border-card);
   --color-border-faint: var(--border-faint);
@@ -180,6 +183,7 @@
     /* The landing page (D-068). The dark panels lift a step off the page. */
     --page: #0a0a0a;
     --card: #121211;
+    --surface-chat: #161615;
     --surface-track: #1c1c1a;
     --border-card: #262624;
     --border-faint: #1c1c1a;
@@ -243,6 +247,7 @@
   /* The landing page (D-068). The dark panels lift a step off the page. */
   --page: #0a0a0a;
   --card: #121211;
+  --surface-chat: #161615;
   --surface-track: #1c1c1a;
   --border-card: #262624;
   --border-faint: #1c1c1a;

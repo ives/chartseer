@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 import type { BundledDataset } from "@/lib/data/datasets";
 import { Icon } from "./icon";
 
+const OPEN =
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-[11px] bg-ink px-[18px] text-[15px] font-medium text-on-ink md:min-h-11";
+
 // One bundled dataset. The facts come from its meta, shared with the app.
 export function DemoCard({
   meta,
@@ -10,14 +13,30 @@ export function DemoCard({
   description,
   prompt,
   drawing,
+  onOpen,
+  fullCredit = false,
 }: {
   meta: BundledDataset;
   title: string;
   description: string;
   prompt: string;
   drawing: ReactNode;
+  // In the app: pick the dataset in place, and show the full attribution, which
+  // must appear wherever the dataset is displayed (D-045).
+  onOpen?: () => void;
+  fullCredit?: boolean;
 }) {
-  const credit = meta.sampleEvery ? `${meta.credit} · a 1-in-${meta.sampleEvery} sample` : meta.credit;
+  const credit = fullCredit
+    ? [meta.attribution, meta.note].filter(Boolean).join(" ")
+    : meta.sampleEvery
+      ? `${meta.credit} · a 1-in-${meta.sampleEvery} sample`
+      : meta.credit;
+  const open = (
+    <>
+      Open demo<span className="sr-only">: {title}</span>
+      <Icon name="arrow-right" size={14} />
+    </>
+  );
   return (
     <li className="flex min-w-0 basis-[486px] grow flex-col rounded-[20px] border border-border-card bg-card p-2.5 md:rounded-3xl md:p-3">
       <div className="rounded-[13px] bg-surface px-[18px] pt-5 pb-3.5 md:rounded-2xl md:px-7 md:pt-7 md:pb-5">{drawing}</div>
@@ -37,13 +56,15 @@ export function DemoCard({
         </p>
         <div className="hidden min-h-6 grow md:block" />
         <div className="mt-[18px] flex flex-col gap-3 md:mt-0 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-4">
-          <Link
-            href={`/app?dataset=${meta.id}`}
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[11px] bg-ink px-[18px] text-[15px] font-medium text-on-ink md:min-h-11"
-          >
-            Open demo<span className="sr-only">: {title}</span>
-            <Icon name="arrow-right" size={14} />
-          </Link>
+          {onOpen ? (
+            <button type="button" onClick={onOpen} className={`${OPEN} cursor-pointer`}>
+              {open}
+            </button>
+          ) : (
+            <Link href={`/app?dataset=${meta.id}`} className={OPEN}>
+              {open}
+            </Link>
+          )}
           <p className="text-center text-xs text-muted md:text-left">{credit}</p>
         </div>
       </div>

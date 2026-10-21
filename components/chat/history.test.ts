@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ChartSteps, canRedo, canUndo, currentIndex, initialSteps, redo, stepLabel, syncSteps, undo } from "./history";
+import { type ChartSteps, canRedo, canUndo, currentIndex, goTo, initialSteps, redo, stepLabel, syncSteps, undo } from "./history";
 
 // Charts arriving one at a time, as each reply draws one.
 function drawn(count: number, from: ChartSteps = initialSteps): ChartSteps {
@@ -67,5 +67,31 @@ describe("chart steps", () => {
     expect(undo(drawn(2)).announce).toBe(true);
     expect(redo(undo(drawn(2))).announce).toBe(true);
     expect(drawn(1, undo(drawn(2))).announce).toBe(false);
+  });
+
+  describe("going to a chart", () => {
+    it("lands where the same number of undos would, and is announced", () => {
+      const steps = drawn(4);
+      expect(goTo(steps, 1)).toEqual(undo(undo(steps)));
+      expect(goTo(steps, 1).announce).toBe(true);
+    });
+
+    it("lands where the same number of redos would", () => {
+      const back = undo(undo(undo(drawn(4))));
+      expect(goTo(back, 2)).toEqual(redo(redo(back)));
+    });
+
+    it("does nothing for the chart already shown", () => {
+      const steps = drawn(2);
+      expect(goTo(steps, 1)).toBe(steps);
+    });
+
+    it("can't reach a chart a new chart after an undo replaced", () => {
+      // Charts 0 and 1, back to 0, then chart 2 drops 1 from the steps.
+      const steps = drawn(1, undo(drawn(2)));
+      expect(steps.stack).toEqual([0, 2]);
+      expect(goTo(steps, 1)).toBe(steps);
+      expect(currentIndex(goTo(steps, 0))).toBe(0);
+    });
   });
 });

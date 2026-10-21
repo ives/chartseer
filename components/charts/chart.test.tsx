@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { datasets } from "@/lib/data/datasets";
 import { describeChart } from "@/lib/data/describe";
@@ -8,6 +8,7 @@ import { parseCsv } from "@/lib/data/parse";
 import { prepareChartData } from "@/lib/data/prepare";
 import { type ChartSpec, parseSpec } from "@/lib/spec";
 import { Chart } from "./chart";
+import { ChartChromeContext, type ChartViewMode } from "./chart-chrome";
 
 const csv = `date,shop,scoops,max_temp_c
 2025-06-01,Brixton,10,20
@@ -29,10 +30,15 @@ const seasonal = inferDataset(
 `),
 );
 
-function renderChart(input: ChartSpec, { summary, rows } = shops) {
+// The page chooses the view; here, the plot or the table.
+function renderChart(input: ChartSpec, { summary, rows } = shops, view: ChartViewMode = "chart") {
   const result = parseSpec(input, summary);
   if (!result.ok) throw new Error(result.errors.join("\n"));
-  return render(<Chart spec={result.spec} data={prepareChartData(rows, summary, result.spec)} dataset={datasets.gelato} />);
+  return render(
+    <ChartChromeContext value={{ view }}>
+      <Chart spec={result.spec} data={prepareChartData(rows, summary, result.spec)} dataset={datasets.gelato} />
+    </ChartChromeContext>,
+  );
 }
 
 const base = { version: 1, title: "Scoops" } as const;
@@ -162,8 +168,7 @@ describe("Chart", () => {
   });
 
   it("shows the data as a table, marking partial and missing values", () => {
-    renderChart({ ...base, type: "bar", x: { field: "date", timeUnit: "month" }, y: { field: "scoops", aggregate: "sum" } }, seasonal);
-    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    renderChart({ ...base, type: "bar", x: { field: "date", timeUnit: "month" }, y: { field: "scoops", aggregate: "sum" } }, seasonal, "table");
     const table = screen.getByRole("table", { name: "Scoops" });
     const headers = [...table.querySelectorAll("th[scope=col]")].map((th) => th.textContent);
     expect(headers).toEqual(["Month", "Sum of scoops"]);
@@ -171,15 +176,13 @@ describe("Chart", () => {
     expect(rows).toEqual(["Nov 2024 (partial)", "Dec 2024", "Jan 2025", "Feb 2025 (partial)"]);
     cleanup();
 
-    renderChart({ ...base, type: "line", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" }, series: { field: "shop" } });
-    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    renderChart({ ...base, type: "line", x: { field: "date" }, y: { field: "scoops", aggregate: "sum" }, series: { field: "shop" } }, shops, "table");
     // Richmond has no row on 2025-06-03.
     expect(screen.getByRole("table").textContent).toContain("no data");
   });
 
   it("lists scatter points with their per value", () => {
-    renderChart({ ...base, type: "scatter", per: { field: "date" }, x: { field: "max_temp_c", aggregate: "mean" }, y: { field: "scoops", aggregate: "sum" } });
-    fireEvent.click(screen.getByRole("button", { name: "View as table" }));
+    renderChart({ ...base, type: "scatter", per: { field: "date" }, x: { field: "max_temp_c", aggregate: "mean" }, y: { field: "scoops", aggregate: "sum" } }, shops, "table");
     const table = screen.getByRole("table", { name: "Scoops" });
     expect([...table.querySelectorAll("th[scope=col]")].map((th) => th.textContent)).toEqual(["Date", "Mean of max temp c", "Sum of scoops"]);
     expect(table.querySelectorAll("tbody tr")).toHaveLength(3);

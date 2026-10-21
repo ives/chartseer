@@ -13,7 +13,7 @@ export function ChartTable({ title, data }: ChartTableProps) {
   const captionId = useId();
   return (
     // Focusable, so a keyboard can scroll a long table.
-    <div role="region" aria-labelledby={captionId} tabIndex={0} className="max-h-96 overflow-auto rounded border border-(--chart-grid) text-sm">
+    <div role="region" aria-labelledby={captionId} tabIndex={0} className="max-h-[28rem] overflow-auto rounded-xl border border-border-card text-sm">
       <table className="w-full border-collapse tabular-nums">
         <caption id={captionId} className="sr-only">
           {title}
@@ -24,7 +24,7 @@ export function ChartTable({ title, data }: ChartTableProps) {
   );
 }
 
-const headClass = "sticky top-0 border-b border-(--chart-axis) bg-background px-3 py-1.5 font-semibold";
+const headClass = "sticky top-0 border-b border-(--chart-axis) bg-card px-3 py-2 font-semibold";
 const cellClass = "border-b border-(--chart-grid) px-3 py-1 text-right";
 const rowHeadClass = "border-b border-(--chart-grid) px-3 py-1 text-left font-normal";
 

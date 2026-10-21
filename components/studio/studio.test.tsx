@@ -4,7 +4,9 @@ import axe from "axe-core";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearHandoff, handOff, peekHandoff } from "./handoff";
+import { datasets } from "@/lib/data/datasets";
 import { Studio } from "./studio";
+import { PRIVACY_NOTE } from "./upload-button";
 
 // The App Router isn't mounted in tests: the URL and the router are stand-ins.
 const navigation = vi.hoisted(() => ({ search: "", replace: vi.fn(), push: vi.fn() }));
@@ -43,8 +45,9 @@ async function axeViolations(): Promise<string[]> {
   return result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(", ")}`);
 }
 
+// The first screen's button, or the workspace header's.
 function upload(file: File) {
-  fireEvent.change(screen.getByLabelText("Upload Own CSV"), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText(/^Upload (Own )?CSV$/), { target: { files: [file] } });
 }
 
 describe("Studio uploads", () => {
@@ -72,8 +75,9 @@ describe("Studio uploads", () => {
   it("passes axe on the first screen and in the workspace", async () => {
     render(<Studio />);
     expect(await axeViolations()).toEqual([]);
-    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
-    await screen.findByRole("button", { name: "Daily revenue by shop in 2025" });
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" }));
+    // The first test to open the workspace waits for its lazy chunk to load cold.
+    await screen.findByRole("button", { name: "Daily revenue by shop in 2025" }, { timeout: 5000 });
     expect(await axeViolations()).toEqual([]);
   });
 
@@ -86,27 +90,69 @@ describe("Studio uploads", () => {
     ).toBeTruthy();
   });
 
+  it("shortens the note in the workspace to a disclosure of the full sentence", async () => {
+    render(<Studio />);
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" }));
+    const disclosure = await screen.findByRole("button", { name: "Your file stays on this device" });
+    const full = document.getElementById(disclosure.getAttribute("aria-controls") ?? "");
+    expect(full?.textContent).toBe(PRIVACY_NOTE);
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    expect(full?.hidden).toBe(true);
+
+    fireEvent.click(disclosure);
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    expect(full?.hidden).toBe(false);
+
+    fireEvent.click(disclosure);
+    expect(full?.hidden).toBe(true);
+  });
+
+  it("shows the full note in the chat before the first message", async () => {
+    render(<Studio />);
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" }));
+    const chat = await screen.findByRole("region", { name: "Chat" });
+    expect(within(chat).getByText(PRIVACY_NOTE)).toBeTruthy();
+  });
+
+  it("sums up the dataset under its name in the switcher", async () => {
+    render(<Studio />);
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Santander Cycles, London" }));
+    await screen.findByLabelText("Dataset");
+    expect(screen.getByText(datasets.bikes.title, { selector: "span" })).toBeTruthy();
+    expect(screen.getByText("About 25,000 rows · January to May 2026")).toBeTruthy();
+  });
+
+  it("sums up an upload by its file name and rows", async () => {
+    render(<Studio />);
+    upload(csvFile("shop,revenue\nBrixton,1\nSoho,2\nPeckham,3\n", "takings.csv"));
+    await screen.findByDisplayValue("takings.csv");
+    expect(screen.getByText("takings.csv", { selector: "span" })).toBeTruthy();
+    expect(screen.getByText("3 rows")).toBeTruthy();
+  });
+
   it("loads a valid file and lists it in the picker", async () => {
     render(<Studio />);
     upload(csvFile('shop,revenue\nBrixton,"£1,200"\n'));
     const picker = (await screen.findByDisplayValue("sales.csv")) as HTMLSelectElement;
     expect(picker.value).toBe("upload");
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByText("Ask for a chart of your data.")).toBeTruthy();
+    expect(await screen.findByText("Ask for a chart of your data.")).toBeTruthy();
   });
 
   it("opens on a choice of demo datasets or an upload", () => {
     render(<Studio />);
     expect(screen.getByRole("heading", { name: "Choose some data to chart" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Gelateria Nebbia/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Santander Cycles journeys, London.*1 in 30\.8/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open demo: Santander Cycles, London" })).toBeTruthy();
+    // The full attribution and the sample note, as wherever the dataset is shown.
+    expect(screen.getByText(`${datasets.bikes.attribution} ${datasets.bikes.note}`)).toBeTruthy();
     expect(screen.getByLabelText("Upload Own CSV")).toBeTruthy();
     expect(screen.queryByLabelText("Dataset")).toBeNull();
   });
 
   it("loads a demo dataset and offers its starters", async () => {
     render(<Studio />);
-    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" }));
     expect(((await screen.findByLabelText("Dataset")) as HTMLSelectElement).value).toBe("gelato");
     expect(await screen.findByRole("button", { name: "Daily revenue by shop in 2025" })).toBeTruthy();
   });
@@ -115,7 +161,7 @@ describe("Studio uploads", () => {
     const fetch = vi.fn(async () => new Response("", { status: 500 }));
     vi.stubGlobal("fetch", fetch);
     render(<Studio />);
-    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" }));
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   });
@@ -128,7 +174,7 @@ describe("Studio uploads", () => {
 
   it("shows the reader's error and keeps the current dataset", async () => {
     render(<Studio />);
-    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" }));
     await screen.findByLabelText("Dataset");
     upload(csvFile("a,b,c\n1,2,3\n4,5\n"));
     expect((await screen.findByRole("alert")).textContent).toBe(
@@ -241,11 +287,11 @@ describe("Studio routes", () => {
 
   it("keeps the URL in step with the dataset, replacing rather than pushing", async () => {
     render(<Studio />);
-    fireEvent.click(screen.getByRole("button", { name: /^Gelateria Nebbia/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open demo: Gelateria Nebbia" }));
     expect(navigation.replace).toHaveBeenLastCalledWith("/app?dataset=gelato");
     fireEvent.change(await screen.findByLabelText("Dataset"), { target: { value: "bikes" } });
     expect(navigation.replace).toHaveBeenLastCalledWith("/app?dataset=bikes");
-    fireEvent.change(screen.getByLabelText("Upload Own CSV"), { target: { files: [csvFile("a,b\n1,2\n")] } });
+    upload(csvFile("a,b\n1,2\n"));
     await screen.findByDisplayValue("sales.csv");
     expect(navigation.replace).toHaveBeenLastCalledWith("/app");
     expect(navigation.push).not.toHaveBeenCalled();
@@ -259,6 +305,17 @@ describe("Studio routes", () => {
     expect(navigation.replace).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Start afresh" }));
     expect(navigation.replace).toHaveBeenCalledWith("/app?dataset=bikes");
+  });
+
+  it("asks before the switcher replaces a conversation, and keeps it on Cancel", async () => {
+    navigation.search = "?dataset=gelato";
+    render(<Studio />);
+    await startConversation();
+    fireEvent.change(screen.getByLabelText("Dataset"), { target: { value: "bikes" } });
+    expect(screen.getByRole("dialog", { name: "Start a new conversation?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect((screen.getByLabelText("Dataset") as HTMLSelectElement).value).toBe("gelato");
+    expect(screen.getByText("Daily revenue by shop in 2025", { selector: ":not(button)" })).toBeTruthy();
   });
 
   it("opens a file handed over by the landing page, and empties the hand-off", async () => {

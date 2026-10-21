@@ -20,15 +20,15 @@ export function ChartSpecView({ spec }: { spec: ChartSpec }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span id={labelId} className="text-(--chart-muted)">
+      <div className="flex items-center justify-between gap-2 text-xs md:text-[13px]">
+        <span id={labelId} className="text-muted">
           Chart spec (JSON)
         </span>
         <span className="flex items-center gap-2">
-          <span role="status" className="text-(--chart-muted)">
+          <span role="status" className="text-muted">
             {status}
           </span>
-          <button type="button" onClick={() => void copy()} className="rounded border border-(--chart-axis) px-2 py-0.5">
+          <button type="button" onClick={() => void copy()} className="min-h-11 rounded-[10px] border border-border bg-card px-3 font-medium hover:border-border-strong md:min-h-9">
             Copy
           </button>
         </span>
@@ -38,7 +38,7 @@ export function ChartSpecView({ spec }: { spec: ChartSpec }) {
         role="region"
         aria-labelledby={labelId}
         tabIndex={0}
-        className="max-h-96 overflow-auto rounded border border-(--chart-grid) bg-surface p-3 font-mono text-xs leading-relaxed"
+        className="max-h-[28rem] overflow-auto rounded-xl border border-border-card bg-surface p-4 font-mono text-xs leading-relaxed"
       >
         <code>{json}</code>
       </pre>

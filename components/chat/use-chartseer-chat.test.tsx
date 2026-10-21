@@ -102,4 +102,35 @@ describe("useChartseerChat undo", () => {
     expect(result.current.currentSpec?.title).toBe(weekly.title);
     expect(result.current.announcement).toBe(`Showing chart 1 of 2: ${weekly.title}`);
   });
+
+  it("goes to a chart as undo would, so the next message says where the user went back to", async () => {
+    const model = new MockLanguageModelV4({ doStream: [toolCall(weekly), toolCall(monthly), toolCall(stackedWeekly)] });
+    serveWith(model);
+    const { result } = renderHook(() => useChartseerChat(gelatoSummary));
+
+    async function send(text: string, title: string) {
+      act(() => result.current.send(text));
+      await waitFor(() => {
+        expect(result.current.busy).toBe(false);
+        expect(result.current.currentSpec?.title).toBe(title);
+      });
+    }
+
+    await send("Weekly scoops by shop in 2025", weekly.title);
+    await send("Monthly scoops instead", monthly.title);
+    expect([result.current.shownIndex, result.current.reachable]).toEqual([1, [0, 1]]);
+
+    act(() => result.current.goTo(0));
+    expect(result.current.currentSpec?.title).toBe(weekly.title);
+    expect(result.current.shownIndex).toBe(0);
+    expect(result.current.announcement).toBe(`Showing chart 1 of 2: ${weekly.title}`);
+    expect(result.current.canRedo).toBe(true);
+
+    await send("Make it stacked", stackedWeekly.title);
+    expect(result.current.messages.at(-2)?.parts[0]).toEqual({ type: "data-back-to", data: { title: weekly.title } });
+    // The monthly chart, index 1, was replaced and can't be gone to.
+    expect([result.current.shownIndex, result.current.reachable]).toEqual([2, [0, 2]]);
+    act(() => result.current.goTo(1));
+    expect(result.current.currentSpec?.title).toBe(stackedWeekly.title);
+  });
 });

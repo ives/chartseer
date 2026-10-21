@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useMemo, useState } from "react";
 import type { DatasetSummary } from "@/lib/spec";
-import { canRedo, canUndo, currentIndex, initialSteps, redo, stepLabel, syncSteps, undo } from "./history";
+import { canRedo, canUndo, currentIndex, goTo, initialSteps, redo, stepLabel, syncSteps, undo } from "./history";
 import { type ChartseerMessage, type RequestContext, buildChatBody, chartHistory, isDrawing } from "./messages";
 
 // send and retry pass the request context as the per-call body; the transport
@@ -38,6 +38,10 @@ export function useChartseerChat(dataset: DatasetSummary | null) {
     drawing: isDrawing(chat.messages, chat.status),
     history,
     currentSpec,
+    // The shown chart's index in the history, and the indices undo and redo
+    // can still reach; the others were dropped by a new chart after an undo.
+    shownIndex: index,
+    reachable: steps.stack,
     // Not while a request is in flight: its reply builds on the spec it was sent with.
     canUndo: !busy && canUndo(steps),
     canRedo: !busy && canRedo(steps),
@@ -46,6 +50,10 @@ export function useChartseerChat(dataset: DatasetSummary | null) {
     },
     redo: () => {
       if (!busy) setSteps(redo(steps));
+    },
+    // Shows one chart of the history, like that many undos or redos (task 03).
+    goTo: (historyIndex: number) => {
+      if (!busy) setSteps(goTo(steps, historyIndex));
     },
     // For screen readers, after an undo or redo; the chat announces new charts.
     announcement: steps.announce && currentSpec ? `${stepLabel(steps)}: ${currentSpec.title}` : "",

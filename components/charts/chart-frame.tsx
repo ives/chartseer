@@ -5,6 +5,7 @@ import type { ScaleBand, ScaleLinear, ScaleLogarithmic, ScalePoint, ScaleTime } 
 import type { DatasetMeta } from "@/lib/data/datasets";
 import { bucketTicks, formatBuckets, isoToUtcDate } from "@/lib/data/dates";
 import type { TimeUnit } from "@/lib/spec";
+import { ChartChromeContext } from "./chart-chrome";
 import { ChartExportContext, type ExportSize, canvasMeasure, fontFamily, wrapLines } from "./chart-export";
 import { ChartTooltip } from "./chart-tooltip";
 import type { TooltipContent } from "./tooltip-content";
@@ -59,76 +60,56 @@ const LINE_HEIGHT = 14;
 const MIN_LEFT = 32;
 const MAX_LEFT_SHARE = 0.4;
 
-type View = "chart" | "table" | "spec";
-
 export function ChartFrame(props: ChartFrameProps) {
   const { title, subtitle, legend, dataset, note, description, table, specView, height, axes, children, hover } = props;
   const exporting = useContext(ChartExportContext);
+  // The page's own controls choose the view (task 03).
+  const { view, actions } = useContext(ChartChromeContext);
   const titleId = useId();
   const descriptionId = useId();
   const [ref, width] = useElementWidth<HTMLDivElement>();
-  const [view, setView] = useState<View>("chart");
   const showPlot = view === "chart";
 
   if (exporting) return <ExportFigure {...props} size={exporting} />;
 
-  // Each toggle shows its view; pressing it again goes back to the chart.
-  const toggle = (label: string, target: View) => (
-    <button
-      type="button"
-      aria-pressed={view === target}
-      onClick={() => setView((current) => (current === target ? "chart" : target))}
-      className="rounded border border-(--chart-axis) px-2 py-0.5 text-xs opacity-80 hover:opacity-100 aria-pressed:bg-(--chart-grid) aria-pressed:opacity-100"
-    >
-      {label}
-    </button>
-  );
-
   return (
     // In dark mode the panel is subtly raised; in light mode it is transparent (D-050).
-    <figure className="flex flex-col gap-3 rounded-lg bg-(--chart-panel) p-3">
+    <figure className="flex flex-col gap-3 bg-(--chart-panel)">
       <figcaption className="flex flex-col gap-1">
-        <h2 id={titleId} className="font-serif text-xl font-semibold tracking-tight">
+        <h2 id={titleId} className="font-serif text-[21px] leading-tight font-semibold tracking-[-0.01em] md:text-[28px] md:tracking-[-0.015em]">
           {title}
         </h2>
-        {subtitle && <p className="text-sm opacity-70">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-secondary">{subtitle}</p>}
       </figcaption>
       <p id={descriptionId} className="sr-only">
         {description}
       </p>
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        {/* The table's column headers name the series, so it needs no legend. */}
-        {showPlot && legend && legend.items.length > 1 ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            {legend.title && <span className="opacity-70">{legend.title}</span>}
-            <ul aria-label={legend.title ?? "Legend"} className="contents">
-              {legend.items.map((item) => (
-                <li key={item.label} className="flex items-center gap-1.5">
-                  <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ background: item.color }} />
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <span />
-        )}
-        <div className="flex gap-2">
-          {toggle("View as table", "table")}
-          {toggle("View spec", "spec")}
+      {/* The table's column headers name the series, so it needs no legend. */}
+      {showPlot && legend && legend.items.length > 1 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-secondary md:gap-x-5 md:gap-y-2 md:text-[13px]">
+          {legend.title && <span className="text-muted">{legend.title}</span>}
+          <ul aria-label={legend.title ?? "Legend"} className="contents">
+            {legend.items.map((item) => (
+              <li key={item.label} className="flex items-center gap-1.5 md:gap-[7px]">
+                <span aria-hidden className="inline-block size-[9px] rounded-[2px] md:size-2.5 md:rounded-[3px]" style={{ background: item.color }} />
+                {item.label}
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
+      )}
       {view === "table" && table}
       {view === "spec" && specView}
       {/* Hidden rather than unmounted, so its ResizeObserver stays attached. */}
-      <div ref={ref} hidden={!showPlot} className="relative w-full">
+      <div ref={ref} hidden={!showPlot} className="relative mt-2 w-full">
         {width > 0 && showPlot && (
           <Plot width={width} height={height} titleId={titleId} descriptionId={descriptionId} axes={axes} hover={hover}>
             {children}
           </Plot>
         )}
       </div>
-      <footer className="flex flex-col gap-0.5 text-xs opacity-70">
+      {actions}
+      <footer className="mt-2 flex flex-col gap-0.5 border-t border-border-faint pt-3 text-[11px] leading-relaxed text-muted md:mt-3 md:pt-4 md:text-xs">
         {note && <p>{note}</p>}
         {dataset.attribution && <p>{dataset.attribution}</p>}
         {dataset.note && <p>{dataset.note}</p>}
