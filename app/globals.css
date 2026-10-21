@@ -292,6 +292,12 @@ body {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+
+  /* Tailwind v4 dropped the pointer cursor on buttons; restore it (D-070). */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }
 
 /* The landing hero's dot grid, fading out from the top centre (D-068). */
