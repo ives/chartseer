@@ -2,11 +2,11 @@
 
 import type { ChatStatus } from "ai";
 import { useEffect, useRef } from "react";
-import { type DatasetSummary, MAX_CONVERSATION_MESSAGES } from "@/lib/spec";
+import { type DatasetSummary, LOW_MESSAGES_WARNING, MAX_CONVERSATION_MESSAGES } from "@/lib/spec";
 import { ChatInput } from "./chat-input";
 import { type ChartLinks, ChatMessage, type DrawnChart } from "./chat-message";
-import { type Limit, friendlyError, limitMessage, limitOf } from "./error-message";
-import { type ChartseerMessage, specsIn, textOf } from "./messages";
+import { type Limit, friendlyError, limitMessage, limitOf, lowMessagesNotice } from "./error-message";
+import { type ChartseerMessage, messagesLeft, specsIn, textOf } from "./messages";
 import { useOnline } from "./use-online";
 
 type ChatPanelProps = {
@@ -51,6 +51,10 @@ export function ChatPanel({
   const limit = error ? limitOf(error) : null;
   // The next message would take the chat over its limit, so it isn't offered (D-063).
   const full = messages.length >= MAX_CONVERSATION_MESSAGES;
+  // A heads-up, not an error, so it is muted and polite (D-071). Any error
+  // notice says more, so it gives way to one.
+  const left = messagesLeft(messages);
+  const runningLow = left !== null && left > 0 && left <= LOW_MESSAGES_WARNING && !error && !full;
 
   // A new chat starts with the cursor in the input, once, as soon as the
   // input is enabled: a demo dataset loads again first.
@@ -109,6 +113,11 @@ export function ChatPanel({
       {!online && (
         <p role="alert" className="mx-3.5 mb-3 rounded-xl border border-border-card bg-card px-3 py-2 text-sm text-secondary md:mx-4 md:mb-0">
           You’re offline. Chartseer will work again when your connection is back.
+        </p>
+      )}
+      {runningLow && (
+        <p role="status" className="mx-3.5 mb-3 rounded-xl border border-border-card bg-card px-3 py-2 text-sm text-secondary md:mx-4 md:mb-0">
+          {lowMessagesNotice(left)}
         </p>
       )}
       {/* Offline, typing still works; sending waits, as while a reply streams. */}

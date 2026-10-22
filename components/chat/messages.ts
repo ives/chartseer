@@ -1,10 +1,10 @@
 import type { ChatStatus, UIMessage } from "ai";
-import { type BackToEvent, type ChartSpec, type DatasetSummary, type ParseResult, parseSpec } from "@/lib/spec";
+import { type BackToEvent, type ChartSpec, type ChatMetadata, type DatasetSummary, type ParseResult, parseSpec } from "@/lib/spec";
 
 // A chat message as the client sees it. The tool's and the data part's types
 // come from lib/spec; client code never imports lib/ai.
 export type ChartseerMessage = UIMessage<
-  never,
+  ChatMetadata,
   { "back-to": BackToEvent },
   { renderChart: { input: unknown; output: ParseResult } }
 >;
@@ -51,6 +51,16 @@ export function isDrawing(messages: ChartseerMessage[], status: ChatStatus): boo
       (part) => part.type === "tool-renderChart" && (part.state === "input-streaming" || part.state === "input-available"),
     )
   );
+}
+
+// How many of today's messages the visitor has left, from the latest reply
+// the server sent it with (D-071).
+export function messagesLeft(messages: ChartseerMessage[]): number | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const remaining = messages[i]?.metadata?.remaining;
+    if (remaining !== undefined) return remaining;
+  }
+  return null;
 }
 
 export function textOf(message: ChartseerMessage): string {

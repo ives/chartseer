@@ -1,6 +1,7 @@
-import { createUIMessageStreamResponse, toUIMessageStream } from "ai";
+import { type ToolSet, type UIMessage, createUIMessageStreamResponse, toUIMessageStream } from "ai";
 import { chatErrorCode, parseChatRequest, streamChart } from "@/lib/ai/chat";
 import { checkDailyLimits, limitStore } from "@/lib/ai/rate-limit";
+import type { ChatMetadata } from "@/lib/spec";
 
 // About 3.5 times the largest demo conversation (D-062).
 const MAX_BODY_BYTES = 256 * 1024;
@@ -35,6 +36,11 @@ export async function POST(request: Request) {
 
   const result = await streamChart(parsed.request);
   return createUIMessageStreamResponse({
-    stream: toUIMessageStream({ stream: result.stream, onError: chatErrorCode }),
+    stream: toUIMessageStream<ToolSet, UIMessage<ChatMetadata>>({
+      stream: result.stream,
+      onError: chatErrorCode,
+      // For the low-messages note (D-071).
+      messageMetadata: ({ part }) => (part.type === "start" ? { remaining: limits.remaining } : undefined),
+    }),
   });
 }

@@ -852,3 +852,15 @@ On mobile, LCP was 3.4 s and total blocking time 490 ms. The LCP element was the
   The `/app` first-load grew because the header's switcher, disclosure and icons are on the first screen (+1.8 KB), and so are the demo cards' illustrations and their data (+3.2 KB). No dependencies were added.
 - The first Studio test to open the workspace now waits up to 5 s for the lazy chunk, which imports cold in just over the 1 s default.
 - Checked in Chrome at 1440 px and at 390 px (in a 390 × 844 frame, as the window couldn't be narrowed), against the three design files, in both themes. Axe found no violations, colour contrast included, in all three views on phones, and on desktop with the disclosure open. Every phone control is at least 44 px; the view buttons were raised from the design's 38 px to meet that. The phone composer keeps two rows rather than the design's one line, so the placeholder isn't clipped.
+
+## D-071 · 2026-10-22 · A heads-up at 5 messages left
+
+**Context:** Visitors only learned about the 30-a-day limit (D-061) when they hit it. A relaxed note while they still have a few left is kinder, and should say when the count resets.
+**Decision:**
+- **The count travels as message metadata.** `LimitStore.take` now returns how many are left after taking one (or `null` when refused); Upstash's `limit()` already returns it, so there is no extra Redis call. The route attaches `{ remaining }` to each reply's `start` chunk, and the chat reads it off the latest message that has it. That needs no client state and no change to the module-level transport, which a response header would have. The schema, `ChatMetadata`, lives in `lib/spec/chat-limits.ts` and `useChat` validates against it.
+- **From 5 left** (`LOW_MESSAGES_WARNING`), a muted note above the input with `role="status"`, not `--danger` or `role="alert"`: it's a heads-up, not an error. It counts down, and gives way to any error or limit notice.
+- **The reset is midnight UTC**, as the windows are UTC days (D-061), followed by the visitor's own time from `Intl`, e.g. "midnight UTC (1am your time)", or just "midnight UTC" where they're the same.
+- **It mentions another network.** That's a deliberate choice for a demo: the 500-a-day global cap still bounds the bill.
+- **Copy:** "Heads up — you've got 5 messages left today. Your allowance tops up at midnight UTC (1am your time). Can't wait? Hop onto another network and you'll get a fresh 30." The `ip_daily_limit` refusal (D-063) now matches it: "That's your 30 for today — nice work. More at midnight UTC (1am your time), or try from another network."
+- The user-facing words are "messages left today" and "allowance", never "rate limit".
+**Consequences:** Replies from before this change have no metadata, so the note simply doesn't show for them.

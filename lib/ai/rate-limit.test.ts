@@ -22,14 +22,21 @@ describe("checkDailyLimits", () => {
     expect(results.every((r) => r.ok)).toBe(true);
     expect(await checkDailyLimits(from("203.0.113.7"), store)).toEqual({ ok: false, code: "ip_daily_limit" });
     // Someone else is unaffected.
-    expect(await checkDailyLimits(from("198.51.100.1"), store)).toEqual({ ok: true });
+    expect(await checkDailyLimits(from("198.51.100.1"), store)).toEqual({ ok: true, remaining: DAILY_MESSAGES_PER_IP - 1 });
+  });
+
+  it("says how many messages the visitor has left after each one", async () => {
+    const results = await send(memoryStore(), "203.0.113.7", DAILY_MESSAGES_PER_IP);
+    expect(results.map((r) => (r.ok ? r.remaining : null))).toEqual(
+      Array.from({ length: DAILY_MESSAGES_PER_IP }, (_, i) => DAILY_MESSAGES_PER_IP - 1 - i),
+    );
   });
 
   it(`stops everyone after ${DAILY_MESSAGES_TOTAL} messages in a day`, async () => {
     const store = memoryStore();
     // Spread across addresses, so no one reaches their own limit.
     for (let i = 0; i < DAILY_MESSAGES_TOTAL; i++) {
-      expect(await checkDailyLimits(from(`10.0.${Math.floor(i / 10)}.${i % 10}`), store)).toEqual({ ok: true });
+      expect((await checkDailyLimits(from(`10.0.${Math.floor(i / 10)}.${i % 10}`), store)).ok).toBe(true);
     }
     expect(await checkDailyLimits(from("192.0.2.1"), store)).toEqual({ ok: false, code: "daily_limit" });
   });
@@ -54,7 +61,7 @@ describe("checkDailyLimits", () => {
     const store = memoryStore();
     vi.spyOn(store, "peek").mockResolvedValue(1);
     const take = store.take.bind(store);
-    vi.spyOn(store, "take").mockImplementation(async (key, limit) => (key === "global" ? false : take(key, limit)));
+    vi.spyOn(store, "take").mockImplementation(async (key, limit) => (key === "global" ? null : take(key, limit)));
     expect(await checkDailyLimits(from("203.0.113.7"), store)).toEqual({ ok: false, code: "daily_limit" });
   });
 

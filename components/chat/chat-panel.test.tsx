@@ -160,3 +160,40 @@ describe("ChatPanel chart chips", () => {
     expect(screen.getByText(props.privacyNote)).toBeTruthy();
   });
 });
+
+describe("ChatPanel low-messages note", () => {
+  beforeEach(() => {
+    Element.prototype.scrollTo = () => {};
+  });
+  afterEach(() => cleanup());
+
+  const conversation = (remaining: number): ChartseerMessage[] => [
+    { id: "u1", role: "user", parts: [{ type: "text", text: "Scoops by shop" }] },
+    { id: "a1", role: "assistant", parts: [{ type: "text", text: "Here you go." }], metadata: { remaining } },
+  ];
+
+  it("shows from 5 messages left, counting down", () => {
+    const { rerender } = render(<ChatPanel {...props} messages={conversation(6)} />);
+    expect(screen.queryByText(/Heads up/)).toBeNull();
+    rerender(<ChatPanel {...props} messages={conversation(5)} />);
+    expect(screen.getByText(/you’ve got 5 messages left today/)).toBeTruthy();
+    rerender(<ChatPanel {...props} messages={conversation(1)} />);
+    expect(screen.getByText(/you’ve got 1 message left today/)).toBeTruthy();
+  });
+
+  it("gives way to an error, and to the limit itself", () => {
+    const refused = new APICallError({
+      message: "refused",
+      url: "/api/chat",
+      requestBodyValues: undefined,
+      statusCode: 429,
+      responseBody: JSON.stringify({ code: "ip_daily_limit" }),
+    });
+    render(<ChatPanel {...props} messages={conversation(0)} />);
+    expect(screen.queryByText(/Heads up/)).toBeNull();
+    cleanup();
+    render(<ChatPanel {...props} messages={conversation(3)} error={refused} />);
+    expect(screen.queryByText(/Heads up/)).toBeNull();
+    expect(screen.getByText(/That’s your 30 for today/)).toBeTruthy();
+  });
+});

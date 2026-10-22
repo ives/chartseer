@@ -80,5 +80,12 @@ describe("POST /api/chat", () => {
     expect(await response.json()).toEqual({ code: "ip_daily_limit" });
     expect(mocks.streamChart).not.toHaveBeenCalled();
   });
+
+  it("tells the chat how many of today's messages the visitor has left", async () => {
+    mocks.streamChart.mockResolvedValue({ stream: new ReadableStream({ start: (c) => (c.enqueue({ type: "start" }), c.close()) }) });
+    const response = await post(body);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(`"messageMetadata":{"remaining":${DAILY_MESSAGES_PER_IP - 1}}`);
+  });
 });
 

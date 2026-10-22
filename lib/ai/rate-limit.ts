@@ -4,13 +4,15 @@ import { DAILY_MESSAGES_PER_IP, DAILY_MESSAGES_TOTAL } from "@/lib/spec";
 
 // Daily message counts for the public demo (D-061). A store counts messages
 // per key per UTC day: `peek` says how many are left without using one, and
-// `take` uses one if any are left.
+// `take` uses one if any are left, saying how many are left after it, or
+// null if none was.
 export type LimitStore = {
   peek(key: string, limit: number): Promise<number>;
-  take(key: string, limit: number): Promise<boolean>;
+  take(key: string, limit: number): Promise<number | null>;
 };
 
-export type DailyLimitResult = { ok: true } | { ok: false; code: "daily_limit" | "ip_daily_limit" };
+// `remaining` is the visitor's own count, for the low-messages note.
+export type DailyLimitResult = { ok: true; remaining: number } | { ok: false; code: "daily_limit" | "ip_daily_limit" };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STORE_TIMEOUT_MS = 1000;
@@ -34,10 +36,11 @@ export async function checkDailyLimits(
 async function gate(request: Request, store: LimitStore): Promise<DailyLimitResult> {
   if ((await store.peek("global", DAILY_MESSAGES_TOTAL)) <= 0) return { ok: false, code: "daily_limit" };
   const visitor = `ip:${await hashIp(clientIp(request))}`;
-  if (!(await store.take(visitor, DAILY_MESSAGES_PER_IP))) return { ok: false, code: "ip_daily_limit" };
+  const remaining = await store.take(visitor, DAILY_MESSAGES_PER_IP);
+  if (remaining === null) return { ok: false, code: "ip_daily_limit" };
   // Another request may have taken the last one since the peek.
-  if (!(await store.take("global", DAILY_MESSAGES_TOTAL))) return { ok: false, code: "daily_limit" };
-  return { ok: true };
+  if ((await store.take("global", DAILY_MESSAGES_TOTAL)) === null) return { ok: false, code: "daily_limit" };
+  return { ok: true, remaining };
 }
 
 // Vercel puts the client first in x-forwarded-for.
@@ -80,9 +83,9 @@ export function memoryStore(now: () => number = Date.now): LimitStore {
     },
     async take(key, limit) {
       const used = counts.get(slot(key)) ?? 0;
-      if (used >= limit) return false;
+      if (used >= limit) return null;
       counts.set(slot(key), used + 1);
-      return true;
+      return limit - used - 1;
     },
   };
 }
@@ -105,7 +108,8 @@ function upstashStore(redis: Redis): LimitStore {
       return (await limiter(limit).getRemaining(key)).remaining;
     },
     async take(key, limit) {
-      return (await limiter(limit).limit(key)).success;
+      const { success, remaining } = await limiter(limit).limit(key);
+      return success ? remaining : null;
     },
   };
 }

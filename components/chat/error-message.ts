@@ -7,10 +7,31 @@ export type Limit = LimitCode | "unavailable";
 
 const BUSY_DAY = "The demo has had a busy day — try again tomorrow.";
 
-const LIMIT_MESSAGES: Record<Limit, string> = {
+// Daily counts restart at midnight UTC (D-061). Visitors elsewhere also get
+// it in their own time, e.g. "midnight UTC (1am your time)".
+export function resetTime(now: Date, timeZone?: string): string {
+  const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const local = midnight
+    .toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone })
+    .replace(":00", "")
+    .replace(/\s/g, "");
+  return local === "12am" ? "midnight UTC" : `midnight UTC (${local} your time)`;
+}
+
+// The heads-up once a visitor is down to their last few messages (D-071).
+export function lowMessagesNotice(remaining: number, now = new Date(), timeZone?: string): string {
+  const messages = remaining === 1 ? "1 message" : `${remaining} messages`;
+  return (
+    `Heads up - you’ve got ${messages} left today. Your allowance tops up at ${resetTime(now, timeZone)}. ` +
+    `Can’t wait? Hop onto another network and you’ll get a fresh ${DAILY_MESSAGES_PER_IP}.`
+  );
+}
+
+const LIMIT_MESSAGES: Record<Limit, string | ((now: Date) => string)> = {
   daily_limit: BUSY_DAY,
   unavailable: BUSY_DAY,
-  ip_daily_limit: `You’ve used today’s ${DAILY_MESSAGES_PER_IP} messages — try again tomorrow.`,
+  ip_daily_limit: (now) =>
+    `That’s your ${DAILY_MESSAGES_PER_IP} for today — nice work. More at ${resetTime(now)}, or try from another network.`,
   conversation_full: `This chat has reached ${MAX_CONVERSATION_MESSAGES} messages. Start a new chat to continue.`,
   message_too_long: `That message is over ${MAX_MESSAGE_CHARS.toLocaleString("en-GB")} characters. Shorten it and try again.`,
   too_large: "That conversation is too large to send. Start a new chat to continue.",
@@ -30,8 +51,9 @@ export function limitOf(error: Error): Limit | null {
   }
 }
 
-export function limitMessage(limit: Limit): string {
-  return LIMIT_MESSAGES[limit];
+export function limitMessage(limit: Limit, now = new Date()): string {
+  const message = LIMIT_MESSAGES[limit];
+  return typeof message === "string" ? message : message(now);
 }
 
 // A short, friendly sentence for a failed chat request (D-036). HTTP errors
@@ -40,7 +62,7 @@ export function limitMessage(limit: Limit): string {
 // of reach, and the fix differs (D-047).
 export function friendlyError(error: Error, online = true): string {
   const limit = limitOf(error);
-  if (limit) return LIMIT_MESSAGES[limit];
+  if (limit) return limitMessage(limit);
   const status = APICallError.isInstance(error) ? error.statusCode : undefined;
   if (status === 503) return "Chat is switched off on this server.";
   if (status === 429 || error.message === "rate_limited") return "Too many requests just now. Wait a moment and try again.";

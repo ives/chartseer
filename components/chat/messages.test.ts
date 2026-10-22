@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type ChartSpec, ChartSpec as ChartSpecSchema, DatasetSummary, examples, gelatoSummary } from "@/lib/spec";
-import { type ChartseerMessage, buildChatBody, chartHistory, isDrawing, specsIn, textOf } from "./messages";
+import { type ChartseerMessage, buildChatBody, chartHistory, isDrawing, messagesLeft, specsIn, textOf } from "./messages";
 
 const weekly = examples.find((e) => e.id === "gelato-weekly-2025")?.spec as ChartSpec;
 const monthly = examples.find((e) => e.id === "gelato-monthly-scoops")?.spec as ChartSpec;
@@ -99,6 +99,19 @@ describe("isDrawing", () => {
 
   it("is false while only text streams", () => {
     expect(isDrawing([user("a"), assistant(text("Hmm"))], "streaming")).toBe(false);
+  });
+});
+
+describe("messagesLeft", () => {
+  const replied = (remaining: number): ChartseerMessage => ({ ...assistant(text("ok")), metadata: { remaining } });
+
+  it("reads the latest reply's count", () => {
+    expect(messagesLeft([user("a"), replied(6), user("b"), replied(5)])).toBe(5);
+  });
+
+  it("looks past a reply without one, and is null when none has one", () => {
+    expect(messagesLeft([replied(4), user("b"), assistant(text("no count"))])).toBe(4);
+    expect(messagesLeft([user("a"), assistant(text("hi"))])).toBeNull();
   });
 });
 

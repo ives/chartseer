@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useMemo, useState } from "react";
-import type { DatasetSummary } from "@/lib/spec";
+import { ChatMetadata, type DatasetSummary } from "@/lib/spec";
 import { canRedo, canUndo, currentIndex, goTo, initialSteps, redo, stepLabel, syncSteps, undo } from "./history";
 import { type ChartseerMessage, type RequestContext, buildChatBody, chartHistory, isDrawing } from "./messages";
 
@@ -17,7 +17,7 @@ const transport = new DefaultChatTransport<ChartseerMessage>({
 // The chat for one dataset. The caller remounts it when the dataset changes,
 // which clears the messages and the chart history together.
 export function useChartseerChat(dataset: DatasetSummary | null) {
-  const chat = useChat<ChartseerMessage>({ transport });
+  const chat = useChat<ChartseerMessage>({ transport, messageMetadataSchema: ChatMetadata });
   const history = useMemo(() => (dataset ? chartHistory(chat.messages, dataset) : []), [chat.messages, dataset]);
   const [stored, setSteps] = useState(initialSteps);
   // Synced during render: pure, and a no-op once it has seen every chart.
